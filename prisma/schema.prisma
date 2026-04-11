@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Meeting {
+  id        String   @id @default(cuid())
+  title     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  audioFileName String?
+  audioMimeType String?
+  audioDuration Int?
+
+  rawTranscript   String?
+  markdownMinutes String?
+  geminiSummary   String?
+
+  status MeetingStatus @default(CREATED)
+
+  @@map("meetings")
+}
+
+enum MeetingStatus {
+  CREATED
+  UPLOADING
+  TRANSCRIBING
+  SUMMARIZING
+  COMPLETED
+  FAILED
+}

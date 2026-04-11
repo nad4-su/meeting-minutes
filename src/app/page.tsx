@@ -1,65 +1,220 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useState } from 'react'
+import { AudioUploader } from '@/components/upload/AudioUploader'
+import { LiveRecorder } from '@/components/recorder/LiveRecorder'
+import { MinutesViewer } from '@/components/minutes/MinutesViewer'
+
+type Tab = 'upload' | 'record'
+type SummaryMode = 'simple' | 'gemini'
+
+interface MinutesResult {
+  markdown: string
+  mode: SummaryMode
+}
+
+export default function HomePage() {
+  const [tab, setTab] = useState<Tab>('record')
+  const [title, setTitle] = useState('')
+  const [transcript, setTranscript] = useState('')
+  const [summaryMode, setSummaryMode] = useState<SummaryMode>('simple')
+  const [result, setResult] = useState<MinutesResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+
+  async function handleUpload(file: File) {
+    setUploadedFile(file)
+    setError(null)
+
+    const formData = new FormData()
+    formData.append('audio', file)
+    formData.append('title', title || file.name.replace(/\.[^.]+$/, ''))
+
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error)
+        return
+      }
+
+      if (!title) setTitle(data.title)
+    } catch {
+      setError('파일 업로드에 실패했습니다.')
+    }
+  }
+
+  function handleTranscriptReady(text: string) {
+    setTranscript(text)
+  }
+
+  async function generateMinutes() {
+    if (!transcript.trim()) {
+      setError('변환할 텍스트가 없습니다. 녹음하거나 파일을 업로드해주세요.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title || '무제 회의',
+          transcript,
+          mode: summaryMode,
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setError(data.error)
+        return
+      }
+
+      setResult({ markdown: data.markdown, mode: data.mode })
+    } catch {
+      setError('회의록 생성에 실패했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="flex-1 bg-gradient-to-b from-neutral-50 to-white">
+      <div className="mx-auto max-w-3xl px-6 py-12">
+        <header className="mb-10 text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-neutral-900">
+            Meeting Minutes
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-2 text-neutral-500">
+            음성을 텍스트로, 텍스트를 회의록으로
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+        </header>
+
+        <section className="mb-8">
+          <label className="block text-sm font-medium text-neutral-600 mb-2">
+            회의 제목
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="예: 주간 스프린트 회의"
+            className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-neutral-800 placeholder:text-neutral-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+          />
+        </section>
+
+        <section className="mb-8">
+          <div className="flex gap-1 rounded-xl bg-neutral-100 p-1 mb-6">
+            <button
+              onClick={() => setTab('record')}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-all ${
+                tab === 'record'
+                  ? 'bg-white text-neutral-900 shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              실시간 녹음
+            </button>
+            <button
+              onClick={() => setTab('upload')}
+              className={`flex-1 rounded-lg py-2.5 text-sm font-medium transition-all ${
+                tab === 'upload'
+                  ? 'bg-white text-neutral-900 shadow-sm'
+                  : 'text-neutral-500 hover:text-neutral-700'
+              }`}
+            >
+              파일 업로드
+            </button>
+          </div>
+
+          {tab === 'record' ? (
+            <LiveRecorder onTranscriptReady={handleTranscriptReady} />
+          ) : (
+            <AudioUploader onFileSelected={handleUpload} />
+          )}
+        </section>
+
+        {transcript && (
+          <section className="mb-8">
+            <label className="block text-sm font-medium text-neutral-600 mb-2">
+              인식된 텍스트
+            </label>
+            <textarea
+              value={transcript}
+              onChange={(e) => setTranscript(e.target.value)}
+              rows={6}
+              className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm font-mono text-neutral-700 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all resize-y"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+          </section>
+        )}
+
+        {uploadedFile && !transcript && (
+          <section className="mb-8">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
+              <strong>{uploadedFile.name}</strong> 업로드 완료.
+              실시간 녹음 탭에서 음성 인식을 시작하거나, 텍스트를 직접 입력해주세요.
+            </div>
+          </section>
+        )}
+
+        <section className="mb-8">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium text-neutral-600">
+              변환 모드:
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSummaryMode('simple')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  summaryMode === 'simple'
+                    ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                단순 변환
+              </button>
+              <button
+                onClick={() => setSummaryMode('gemini')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  summaryMode === 'gemini'
+                    ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                Gemini AI 요약
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <button
+          onClick={generateMinutes}
+          disabled={loading || !transcript.trim()}
+          className="w-full rounded-xl bg-neutral-900 px-6 py-3.5 text-white font-medium shadow-lg shadow-neutral-900/10 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all mb-8"
+        >
+          {loading ? '생성 중...' : '회의록 생성'}
+        </button>
+
+        {error && (
+          <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <MinutesViewer
+            markdown={result.markdown}
+            title={title || '무제 회의'}
+            mode={result.mode}
+          />
+        )}
+      </div>
+    </main>
+  )
 }
