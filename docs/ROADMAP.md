@@ -46,13 +46,13 @@
 
 ---
 
-## 🎯 Phase 1 — 회의 저장/조회 (1~2주)
+## ✅ Phase 1 — 회의 저장/조회 (완료)
 
-노션의 **Meeting Database** 수준. 생성한 회의록을 저장하고 다시 찾아볼 수 있게 함.
+노션의 **Meeting Database** 수준. 생성한 회의록을 저장하고 다시 찾아볼 수 있음.
 
 ### Issues
 - [x] **#1 Prisma 연결 + 마이그레이션 파이프라인** — PR `feat/phase-1-foundation`
-  - [x] `src/lib/db.ts` 싱글톤 Prisma 클라이언트
+  - [x] `src/lib/db.ts` 싱글톤 Prisma 클라이언트 (Prisma 7 driver adapter 경유)
   - [x] 첫 마이그레이션 생성 (`prisma migrate dev`)
   - [x] docker-compose `tools` 프로필에 `migrate` 서비스 추가
   - [x] Meeting 스키마 확장 (attendees/tags/template/depth/summaryMode/customPrompt)
@@ -62,23 +62,25 @@
   - [x] `GET /api/meetings/[id]` — 상세
   - [x] `PUT /api/meetings/[id]` — markdown/title/attendees/tags 편집
   - [x] `DELETE /api/meetings/[id]`
-- [ ] **#3 MinutesViewer에 "저장" 버튼**
-  - 생성된 회의록 현재 세션에서 저장 → 토스트 알림
-  - 저장 성공 시 `/meetings/[id]` 링크 제공
-- [ ] **#4 회의 목록 페이지** (`/meetings`)
-  - 카드 그리드 (제목, 날짜, 앞 2줄 미리보기, 태그)
-  - 빈 상태 UI ("첫 회의를 녹음해보세요")
-- [ ] **#5 회의 상세 페이지** (`/meetings/[id]`)
-  - Transcript + Markdown 렌더링
-  - 인라인 편집 (markdown editor 도입 — 아래 #6)
-  - 삭제 버튼
-- [ ] **#6 Markdown 렌더링 라이브러리 도입**
-  - `marked` + `isomorphic-dompurify`
-  - 기존 커스텀 파서(`export-minutes.ts`) 교체 — 표/리스트/인라인 스타일 정상 렌더
-- [ ] **#7 전역 검색**
-  - Postgres `tsvector` 전체 텍스트 인덱스 (transcript + markdown)
-  - `/api/meetings?q=...` 엔드포인트
-  - 헤더에 검색 바 추가
+- [x] **#3 MinutesViewer에 "저장" 버튼** — PR `feat/phase-1-ui`
+  - [x] 생성된 회의록 세션에서 저장 → 배너 + 상세 링크
+  - [x] 미리보기 / 원문 토글
+- [x] **#4 회의 목록 페이지** (`/meetings`) — PR `feat/phase-1-ui`
+  - [x] 카드 그리드 (제목, 날짜, preview, 태그, 참석자, 템플릿 배지)
+  - [x] 빈 상태 UI
+  - [x] 페이지네이션
+- [x] **#5 회의 상세 페이지** (`/meetings/[id]`) — PR `feat/phase-1-ui`
+  - [x] Markdown 렌더링 (sanitize)
+  - [x] 인라인 편집 (제목/본문/참석자/태그) + 좌우 미리보기
+  - [x] 삭제 버튼
+- [x] **#6 Markdown 렌더링 라이브러리 도입** — PR `feat/phase-1-ui`
+  - [x] `marked` + `isomorphic-dompurify`
+  - [x] `src/lib/markdown.ts` 공용 유틸
+  - [x] 기존 커스텀 파서 교체, `.prose-minutes` 공통 스타일
+- [x] **#7 전역 검색** — PR `feat/phase-1-ui`
+  - [x] 검색 바 (debounce 300ms, URL query 동기화)
+  - [x] `/api/meetings?q=...` 부분 검색 (title/transcript/markdown)
+  - [ ] Postgres `tsvector` GIN 인덱스 — 현재 ILIKE로 개인용 규모 충분, 필요 시 후속
 
 ---
 

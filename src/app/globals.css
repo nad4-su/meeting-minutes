@@ -12,15 +12,101 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.prose-minutes h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #111827;
+}
+.prose-minutes h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1.5rem 0 0.75rem;
+  color: #1f2937;
+}
+.prose-minutes h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.5rem;
+  color: #374151;
+}
+.prose-minutes p {
+  margin: 0.5rem 0;
+}
+.prose-minutes ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+.prose-minutes ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+.prose-minutes li {
+  margin: 0.25rem 0;
+}
+.prose-minutes li > input[type='checkbox'] {
+  margin-right: 0.4rem;
+}
+.prose-minutes blockquote {
+  border-left: 3px solid #d1d5db;
+  padding-left: 0.75rem;
+  color: #6b7280;
+  margin: 0.75rem 0;
+  font-style: italic;
+}
+.prose-minutes code {
+  background: #f3f4f6;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: var(--font-geist-mono), monospace;
+}
+.prose-minutes pre {
+  background: #f9fafb;
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.prose-minutes pre code {
+  background: transparent;
+  padding: 0;
+}
+.prose-minutes hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1.25rem 0;
+}
+.prose-minutes strong {
+  font-weight: 600;
+  color: #111827;
+}
+.prose-minutes a {
+  color: #7c3aed;
+  text-decoration: underline;
+}
+.prose-minutes table {
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+.prose-minutes th,
+.prose-minutes td {
+  border: 1px solid #e5e7eb;
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+}
+.prose-minutes th {
+  background: #f9fafb;
+  font-weight: 600;
 }
