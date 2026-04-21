@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
 
