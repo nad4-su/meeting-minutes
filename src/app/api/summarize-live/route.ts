@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 import { generateLiveSummary } from '@/lib/live-summary'
+import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 const MAX_TRANSCRIPT_CHARS = 40_000
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { transcript } = body
+    const { transcript, template, depth, customPrompt } = body
 
     if (!transcript || typeof transcript !== 'string') {
       return Response.json(
@@ -28,7 +29,13 @@ export async function POST(request: NextRequest) {
         ? transcript.slice(-MAX_TRANSCRIPT_CHARS)
         : transcript
 
-    const result = await generateLiveSummary(truncated, { apiKey })
+    const result = await generateLiveSummary(truncated, {
+      apiKey,
+      template: (template as TemplateId | undefined) ?? 'meeting',
+      depth: depth as SummaryDepth | undefined,
+      customPrompt:
+        typeof customPrompt === 'string' ? customPrompt : undefined,
+    })
 
     if (!result.success) {
       const status = result.rateLimited ? 429 : 502

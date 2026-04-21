@@ -1,7 +1,17 @@
+import {
+  buildPrompt,
+  resolveDepth,
+  type SummaryDepth,
+  type TemplateId,
+} from './templates'
+
 export interface MinutesInput {
   title: string
   date: Date
   transcript: string
+  template?: TemplateId
+  depth?: SummaryDepth
+  customPrompt?: string
 }
 
 type GeminiResult =
@@ -39,20 +49,6 @@ ${content}
 `
 }
 
-const GEMINI_PROMPT = `당신은 회의록 작성 전문가입니다. 아래 음성 인식 텍스트를 분석하여 구조화된 회의록을 마크다운 형식으로 작성해주세요.
-
-포함할 섹션:
-- ## 요약 (핵심 내용 3-5줄)
-- ## 주요 논의 사항 (번호 매기기)
-- ## 액션 아이템 (체크리스트 형식)
-- ## 다음 단계
-
-간결하고 명확하게 작성해주세요. 한국어로 작성합니다.
-
----
-음성 인식 텍스트:
-`
-
 export async function generateGeminiMinutes(
   input: MinutesInput,
   options: GeminiOptions,
@@ -62,6 +58,16 @@ export async function generateGeminiMinutes(
   if (!apiKey || apiKey.trim().length === 0) {
     return { success: false, error: 'Gemini API 키가 필요합니다.' }
   }
+
+  const templateId = input.template ?? 'meeting'
+  const depth = resolveDepth(templateId, input.depth)
+  const prompt = buildPrompt({
+    templateId,
+    depth,
+    transcript: input.transcript,
+    live: false,
+    customPrompt: input.customPrompt,
+  })
 
   const url =
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
@@ -74,11 +80,7 @@ export async function generateGeminiMinutes(
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: `${GEMINI_PROMPT}${input.transcript}` }],
-          },
-        ],
+        contents: [{ parts: [{ text: prompt }] }],
       }),
     })
 

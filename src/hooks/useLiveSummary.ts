@@ -3,12 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TranscriptChunk } from '@/lib/transcript-formatter'
 import { formatTranscriptChunks } from '@/lib/transcript-formatter'
+import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 interface UseLiveSummaryOptions {
   enabled: boolean
   pollIntervalMs?: number
   minWords?: number
   incrementWords?: number
+  template?: TemplateId
+  depth?: SummaryDepth
+  customPrompt?: string
 }
 
 interface LiveSummaryState {
@@ -36,7 +40,15 @@ export function useLiveSummary(
     pollIntervalMs = 30_000,
     minWords = 25,
     incrementWords = 40,
+    template = 'meeting',
+    depth,
+    customPrompt,
   } = options
+
+  const configRef = useRef({ template, depth, customPrompt })
+  useEffect(() => {
+    configRef.current = { template, depth, customPrompt }
+  }, [template, depth, customPrompt])
 
   const [summary, setSummary] = useState('')
   const [isSummarizing, setIsSummarizing] = useState(false)
@@ -101,7 +113,12 @@ export function useLiveSummary(
         const res = await fetch('/api/summarize-live', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ transcript }),
+          body: JSON.stringify({
+            transcript,
+            template: configRef.current.template,
+            depth: configRef.current.depth,
+            customPrompt: configRef.current.customPrompt,
+          }),
           signal: controller.signal,
         })
 

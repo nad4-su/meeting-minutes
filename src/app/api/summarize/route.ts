@@ -3,11 +3,13 @@ import {
   generateGeminiMinutes,
   generateSimpleMinutes,
 } from '@/lib/minutes-generator'
+import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, transcript, mode, date } = body
+    const { title, transcript, mode, date, template, depth, customPrompt } =
+      body
 
     if (!transcript || typeof transcript !== 'string') {
       return Response.json(
@@ -20,6 +22,10 @@ export async function POST(request: NextRequest) {
       title: title || '무제 회의',
       transcript,
       date: date ? new Date(date) : new Date(),
+      template: (template as TemplateId | undefined) ?? 'meeting',
+      depth: depth as SummaryDepth | undefined,
+      customPrompt:
+        typeof customPrompt === 'string' ? customPrompt : undefined,
     }
 
     if (mode === 'gemini') {

@@ -4,15 +4,22 @@ import { useEffect, useRef } from 'react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useLiveSummary } from '@/hooks/useLiveSummary'
 import { formatTranscriptChunks } from '@/lib/transcript-formatter'
+import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 interface LiveRecorderProps {
   onTranscriptReady: (transcript: string) => void
   liveSummaryEnabled: boolean
+  template: TemplateId
+  depth: SummaryDepth
+  customPrompt?: string
 }
 
 export function LiveRecorder({
   onTranscriptReady,
   liveSummaryEnabled,
+  template,
+  depth,
+  customPrompt,
 }: LiveRecorderProps) {
   const {
     isListening,
@@ -36,6 +43,9 @@ export function LiveRecorder({
     cooldownUntil,
   } = useLiveSummary(chunks, {
     enabled: liveSummaryEnabled && isListening,
+    template,
+    depth,
+    customPrompt,
   })
 
   const transcriptEndRef = useRef<HTMLDivElement>(null)

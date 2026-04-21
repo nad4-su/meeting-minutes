@@ -1,33 +1,21 @@
+import {
+  buildPrompt,
+  resolveDepth,
+  type SummaryDepth,
+  type TemplateId,
+} from './templates'
+
 type LiveSummaryResult =
   | { success: true; markdown: string }
   | { success: false; error: string; rateLimited?: boolean }
 
 interface LiveSummaryOptions {
   apiKey: string
+  template?: TemplateId
+  depth?: SummaryDepth
+  customPrompt?: string
   fetchFn?: typeof fetch
 }
-
-const LIVE_PROMPT = `회의가 아직 진행 중입니다. 지금까지의 발화 내용을 기반으로 짧고 구조화된 중간 요약을 작성하세요.
-
-형식 (마크다운):
-## 요약
-(핵심 내용 3줄 이내)
-
-## 주요 논의 사항
-1. ...
-2. ...
-
-## 액션 아이템
-- [ ] ...
-
-규칙:
-- 확정되지 않은 결정은 "(논의 중)"으로 표시
-- 액션 아이템은 담당자/기한이 명확한 것만 포함
-- 한국어로, 간결하게
-
----
-음성 인식 텍스트:
-`
 
 export async function generateLiveSummary(
   transcript: string,
@@ -44,6 +32,16 @@ export async function generateLiveSummary(
     return { success: false, error: '요약할 텍스트가 비어 있습니다.' }
   }
 
+  const templateId = options.template ?? 'meeting'
+  const depth = resolveDepth(templateId, options.depth)
+  const prompt = buildPrompt({
+    templateId,
+    depth,
+    transcript: trimmed,
+    live: true,
+    customPrompt: options.customPrompt,
+  })
+
   const url =
     'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
 
@@ -55,11 +53,7 @@ export async function generateLiveSummary(
         'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: `${LIVE_PROMPT}${trimmed}` }],
-          },
-        ],
+        contents: [{ parts: [{ text: prompt }] }],
       }),
     })
 

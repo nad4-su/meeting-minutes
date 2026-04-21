@@ -1,9 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { AudioUploader } from '@/components/upload/AudioUploader'
 import { LiveRecorder } from '@/components/recorder/LiveRecorder'
 import { MinutesViewer } from '@/components/minutes/MinutesViewer'
+import {
+  TEMPLATES,
+  DEFAULT_TEMPLATE_ID,
+  DEFAULT_DEPTH,
+  depthAdjustableFor,
+  liveEnabledFor,
+  type SummaryDepth,
+  type TemplateId,
+} from '@/lib/templates'
 
 type Tab = 'upload' | 'record'
 type SummaryMode = 'simple' | 'gemini'
@@ -11,6 +20,13 @@ type SummaryMode = 'simple' | 'gemini'
 interface MinutesResult {
   markdown: string
   mode: SummaryMode
+  warning?: string
+}
+
+const DEPTH_LABELS: Record<SummaryDepth, string> = {
+  concise: '간결',
+  standard: '표준',
+  detailed: '상세',
 }
 
 export default function HomePage() {
@@ -18,10 +34,44 @@ export default function HomePage() {
   const [title, setTitle] = useState('')
   const [transcript, setTranscript] = useState('')
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('gemini')
+  const [template, setTemplate] = useState<TemplateId>(DEFAULT_TEMPLATE_ID)
+  const [depth, setDepth] = useState<SummaryDepth>(DEFAULT_DEPTH)
+  const [customPrompt, setCustomPrompt] = useState('')
   const [result, setResult] = useState<MinutesResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+
+  const templateList = useMemo(
+    () => [
+      ...Object.values(TEMPLATES),
+      {
+        id: 'custom' as const,
+        name: '커스텀',
+        icon: '⚙️',
+        description: '직접 프롬프트 작성',
+      },
+    ],
+    [],
+  )
+
+  const activeTemplateMeta = useMemo(() => {
+    if (template === 'custom') {
+      return { adjustable: false, live: true }
+    }
+    return {
+      adjustable: depthAdjustableFor(template),
+      live: liveEnabledFor(template),
+    }
+  }, [template])
+
+  function handleTemplateChange(id: TemplateId) {
+    setTemplate(id)
+    if (id !== 'custom') {
+      const tpl = TEMPLATES[id]
+      setDepth(tpl.defaultDepth)
+    }
+  }
 
   async function handleUpload(file: File) {
     setUploadedFile(file)
@@ -64,6 +114,9 @@ export default function HomePage() {
           title: title || '무제 회의',
           transcript: text,
           mode,
+          template,
+          depth,
+          customPrompt: template === 'custom' ? customPrompt : undefined,
         }),
       })
       const data = await res.json()
@@ -73,7 +126,11 @@ export default function HomePage() {
         return
       }
 
-      setResult({ markdown: data.markdown, mode: data.mode })
+      setResult({
+        markdown: data.markdown,
+        mode: data.mode,
+        warning: data.warning,
+      })
     } catch {
       setError('회의록 생성에 실패했습니다.')
     } finally {
@@ -86,6 +143,9 @@ export default function HomePage() {
     generateMinutes(text, summaryMode)
   }
 
+  const liveSummaryActive =
+    summaryMode === 'gemini' && activeTemplateMeta.live && tab === 'record'
+
   return (
     <main className="flex-1 bg-gradient-to-b from-neutral-50 to-white">
       <div className="mx-auto max-w-3xl px-6 py-12">
@@ -94,13 +154,13 @@ export default function HomePage() {
             Meeting Minutes
           </h1>
           <p className="mt-2 text-neutral-500">
-            음성을 텍스트로, 텍스트를 회의록으로
+            음성을 텍스트로, 용도에 맞는 템플릿으로 정리
           </p>
         </header>
 
         <section className="mb-8">
           <label className="block text-sm font-medium text-neutral-600 mb-2">
-            회의 제목
+            제목
           </label>
           <input
             type="text"
@@ -111,10 +171,10 @@ export default function HomePage() {
           />
         </section>
 
-        <section className="mb-8">
-          <div className="flex items-center gap-4 mb-6">
-            <label className="text-sm font-medium text-neutral-600">
-              변환 모드:
+        <section className="mb-8 space-y-5">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium text-neutral-600 min-w-20">
+              변환 모드
             </label>
             <div className="flex gap-2">
               <button
@@ -139,10 +199,88 @@ export default function HomePage() {
               </button>
             </div>
           </div>
-          {summaryMode === 'gemini' && tab === 'record' && (
-            <p className="text-xs text-purple-600">
-              💡 녹음 중 30초마다 중간 요약이 자동 갱신되고, 종료 시 최종 회의록이 생성됩니다.
-            </p>
+
+          {summaryMode === 'gemini' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-neutral-600 mb-2">
+                  템플릿
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {templateList.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => handleTemplateChange(tpl.id)}
+                      title={tpl.description}
+                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all ${
+                        template === tpl.id
+                          ? 'border-purple-400 bg-purple-50 text-purple-700'
+                          : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className="mr-1">{tpl.icon}</span>
+                      {tpl.name}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-neutral-500">
+                  {template === 'custom'
+                    ? '직접 프롬프트 작성'
+                    : TEMPLATES[template]?.description}
+                </p>
+              </div>
+
+              {activeTemplateMeta.adjustable && (
+                <div className="flex items-center gap-4">
+                  <label className="text-sm font-medium text-neutral-600 min-w-20">
+                    작성 강도
+                  </label>
+                  <div className="flex gap-2">
+                    {(['concise', 'standard', 'detailed'] as const).map(
+                      (d) => (
+                        <button
+                          key={d}
+                          onClick={() => setDepth(d)}
+                          className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                            depth === d
+                              ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                              : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                          }`}
+                        >
+                          {DEPTH_LABELS[d]}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {template === 'custom' && (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-600 mb-2">
+                    커스텀 프롬프트
+                  </label>
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="예: 당신은 기술 문서 작성자입니다. 아래 내용을 개발자 가이드 형식으로..."
+                    rows={4}
+                    className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm text-neutral-700 placeholder:text-neutral-400 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100 transition-all resize-y"
+                  />
+                  <p className="mt-1 text-xs text-neutral-500">
+                    비워두면 회의록 템플릿이 적용됩니다.
+                  </p>
+                </div>
+              )}
+
+              {tab === 'record' && (
+                <p className="text-xs text-purple-600">
+                  {liveSummaryActive
+                    ? '💡 녹음 중 30초마다 중간 정리가 자동 갱신되고, 종료 시 최종 문서가 생성됩니다.'
+                    : '💡 이 템플릿은 녹음 종료 시 한 번만 생성됩니다.'}
+                </p>
+              )}
+            </>
           )}
         </section>
 
@@ -173,7 +311,10 @@ export default function HomePage() {
           {tab === 'record' ? (
             <LiveRecorder
               onTranscriptReady={handleTranscriptReady}
-              liveSummaryEnabled={summaryMode === 'gemini'}
+              liveSummaryEnabled={liveSummaryActive}
+              template={template}
+              depth={depth}
+              customPrompt={template === 'custom' ? customPrompt : undefined}
             />
           ) : (
             <AudioUploader onFileSelected={handleUpload} />
@@ -208,12 +349,18 @@ export default function HomePage() {
           disabled={loading || !transcript.trim()}
           className="w-full rounded-xl bg-neutral-900 px-6 py-3.5 text-white font-medium shadow-lg shadow-neutral-900/10 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all mb-8"
         >
-          {loading ? '생성 중...' : result ? '회의록 재생성' : '회의록 생성'}
+          {loading ? '생성 중...' : result ? '재생성' : '생성'}
         </button>
 
         {error && (
           <div className="mb-8 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {error}
+          </div>
+        )}
+
+        {result?.warning && (
+          <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+            {result.warning}
           </div>
         )}
 
