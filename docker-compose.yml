@@ -32,6 +32,18 @@ services:
       db:
         condition: service_healthy
 
+  test:
+    profiles: ["tools"]
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      CI: "true"
+    volumes:
+      - .:/app
+      - test_node_modules:/app/node_modules
+    command: sh -c "npm ci && npm test"
+
 volumes:
   pgdata:
   uploads:
+  test_node_modules:

@@ -17,7 +17,7 @@ export default function HomePage() {
   const [tab, setTab] = useState<Tab>('record')
   const [title, setTitle] = useState('')
   const [transcript, setTranscript] = useState('')
-  const [summaryMode, setSummaryMode] = useState<SummaryMode>('simple')
+  const [summaryMode, setSummaryMode] = useState<SummaryMode>('gemini')
   const [result, setResult] = useState<MinutesResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,12 +46,9 @@ export default function HomePage() {
     }
   }
 
-  function handleTranscriptReady(text: string) {
-    setTranscript(text)
-  }
-
-  async function generateMinutes() {
-    if (!transcript.trim()) {
+  async function generateMinutes(sourceTranscript: string, mode: SummaryMode) {
+    const text = sourceTranscript.trim()
+    if (!text) {
       setError('변환할 텍스트가 없습니다. 녹음하거나 파일을 업로드해주세요.')
       return
     }
@@ -65,8 +62,8 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title || '무제 회의',
-          transcript,
-          mode: summaryMode,
+          transcript: text,
+          mode,
         }),
       })
       const data = await res.json()
@@ -82,6 +79,11 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function handleTranscriptReady(text: string) {
+    setTranscript(text)
+    generateMinutes(text, summaryMode)
   }
 
   return (
@@ -110,6 +112,41 @@ export default function HomePage() {
         </section>
 
         <section className="mb-8">
+          <div className="flex items-center gap-4 mb-6">
+            <label className="text-sm font-medium text-neutral-600">
+              변환 모드:
+            </label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSummaryMode('simple')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  summaryMode === 'simple'
+                    ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                단순 변환
+              </button>
+              <button
+                onClick={() => setSummaryMode('gemini')}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  summaryMode === 'gemini'
+                    ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                }`}
+              >
+                Gemini AI 요약
+              </button>
+            </div>
+          </div>
+          {summaryMode === 'gemini' && tab === 'record' && (
+            <p className="text-xs text-purple-600">
+              💡 녹음 중 30초마다 중간 요약이 자동 갱신되고, 종료 시 최종 회의록이 생성됩니다.
+            </p>
+          )}
+        </section>
+
+        <section className="mb-8">
           <div className="flex gap-1 rounded-xl bg-neutral-100 p-1 mb-6">
             <button
               onClick={() => setTab('record')}
@@ -134,7 +171,10 @@ export default function HomePage() {
           </div>
 
           {tab === 'record' ? (
-            <LiveRecorder onTranscriptReady={handleTranscriptReady} />
+            <LiveRecorder
+              onTranscriptReady={handleTranscriptReady}
+              liveSummaryEnabled={summaryMode === 'gemini'}
+            />
           ) : (
             <AudioUploader onFileSelected={handleUpload} />
           )}
@@ -163,42 +203,12 @@ export default function HomePage() {
           </section>
         )}
 
-        <section className="mb-8">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-neutral-600">
-              변환 모드:
-            </label>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setSummaryMode('simple')}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                  summaryMode === 'simple'
-                    ? 'bg-green-100 text-green-700 ring-1 ring-green-300'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                }`}
-              >
-                단순 변환
-              </button>
-              <button
-                onClick={() => setSummaryMode('gemini')}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                  summaryMode === 'gemini'
-                    ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
-                    : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
-                }`}
-              >
-                Gemini AI 요약
-              </button>
-            </div>
-          </div>
-        </section>
-
         <button
-          onClick={generateMinutes}
+          onClick={() => generateMinutes(transcript, summaryMode)}
           disabled={loading || !transcript.trim()}
           className="w-full rounded-xl bg-neutral-900 px-6 py-3.5 text-white font-medium shadow-lg shadow-neutral-900/10 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all mb-8"
         >
-          {loading ? '생성 중...' : '회의록 생성'}
+          {loading ? '생성 중...' : result ? '회의록 재생성' : '회의록 생성'}
         </button>
 
         {error && (

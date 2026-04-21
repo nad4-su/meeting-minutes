@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
-import { generateGeminiMinutes, generateSimpleMinutes } from '@/lib/minutes-generator'
+import {
+  generateGeminiMinutes,
+  generateSimpleMinutes,
+} from '@/lib/minutes-generator'
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,7 +10,10 @@ export async function POST(request: NextRequest) {
     const { title, transcript, mode, date } = body
 
     if (!transcript || typeof transcript !== 'string') {
-      return Response.json({ error: '변환할 텍스트가 필요합니다.' }, { status: 400 })
+      return Response.json(
+        { error: '변환할 텍스트가 필요합니다.' },
+        { status: 400 },
+      )
     }
 
     const input = {
@@ -21,7 +27,12 @@ export async function POST(request: NextRequest) {
       const result = await generateGeminiMinutes(input, { apiKey })
 
       if (!result.success) {
-        return Response.json({ error: result.error }, { status: 502 })
+        const fallback = generateSimpleMinutes(input)
+        return Response.json({
+          markdown: fallback,
+          mode: 'simple',
+          warning: `Gemini 요약에 실패하여 단순 변환으로 대체되었습니다: ${result.error}`,
+        })
       }
 
       return Response.json({ markdown: result.markdown, mode: 'gemini' })
@@ -31,6 +42,9 @@ export async function POST(request: NextRequest) {
     return Response.json({ markdown, mode: 'simple' })
   } catch (err) {
     const message = err instanceof Error ? err.message : '알 수 없는 오류'
-    return Response.json({ error: `요약 처리 실패: ${message}` }, { status: 500 })
+    return Response.json(
+      { error: `요약 처리 실패: ${message}` },
+      { status: 500 },
+    )
   }
 }
