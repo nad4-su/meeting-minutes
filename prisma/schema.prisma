@@ -21,8 +21,17 @@ model Meeting {
   markdownMinutes String?
   geminiSummary   String?
 
-  status MeetingStatus @default(CREATED)
+  summaryMode   String?
+  template      String?
+  depth         String?
+  customPrompt  String?
 
+  attendees String[]
+  tags      String[]
+
+  status MeetingStatus @default(COMPLETED)
+
+  @@index([createdAt])
   @@map("meetings")
 }
 

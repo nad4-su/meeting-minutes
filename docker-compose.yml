@@ -16,6 +16,20 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    profiles: ["tools"]
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-meetinguser}:${POSTGRES_PASSWORD:-meetingpass}@db:5432/${POSTGRES_DB:-meetingminutes}
+    volumes:
+      - .:/app
+      - migrate_node_modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "npm ci && npx prisma migrate deploy"
+
   app:
     build:
       context: .
@@ -47,3 +61,4 @@ volumes:
   pgdata:
   uploads:
   test_node_modules:
+  migrate_node_modules:
