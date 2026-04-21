@@ -57,7 +57,7 @@
 | STT (실시간) | Web Speech API — Chrome 내장, 무료 |
 | AI 요약 | Gemini 2.5 Flash Lite — 무료 등급 15 RPM / 1000 RPD |
 | DB | PostgreSQL 16 + Prisma 7 (스키마 준비, Phase 1에서 활용 예정) |
-| 테스트 | Vitest (57 tests, jsdom) |
+| 테스트 | Vitest (71 tests, jsdom) |
 | 배포 | Docker Compose (app + db + test profile) |
 
 ---
@@ -75,7 +75,15 @@ cp .env.example .env
 `.env`에서 **`GEMINI_API_KEY`** 설정 ([Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급).
 > 키가 없어도 "단순 변환" 모드는 정상 동작.
 
-### 2. 기동
+### 2. DB 마이그레이션 (최초 1회 + 스키마 변경 시)
+
+```bash
+docker compose --profile tools run --rm migrate
+```
+
+이 명령은 `db` 컨테이너를 자동 기동하고 `prisma migrate deploy`로 테이블을 생성합니다.
+
+### 3. 기동
 
 ```bash
 docker compose up -d --build
@@ -148,7 +156,7 @@ src/
 │   ├── upload/AudioUploader.tsx
 │   ├── recorder/LiveRecorder.tsx        # 좌우 분할 뷰
 │   └── minutes/MinutesViewer.tsx
-└── __tests__/                           # 57 tests
+└── __tests__/                           # 71 tests
 
 docs/
 ├── ROADMAP.md                           # 개발 로드맵 (Phase 0~4)

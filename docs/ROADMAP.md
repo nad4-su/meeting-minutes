@@ -51,17 +51,17 @@
 노션의 **Meeting Database** 수준. 생성한 회의록을 저장하고 다시 찾아볼 수 있게 함.
 
 ### Issues
-- [ ] **#1 Prisma 연결 + 마이그레이션 파이프라인**
-  - `src/lib/db.ts` 싱글톤 Prisma 클라이언트
-  - 첫 마이그레이션 생성 (`prisma migrate dev`)
-  - Dockerfile에 `prisma migrate deploy` 추가
-  - Meeting 스키마에 `attendees` (String[]), `tags` (String[]) 필드 추가
-- [ ] **#2 회의 저장 API**
-  - `POST /api/meetings` — transcript + markdown 저장
-  - `GET /api/meetings` — 목록 조회 (최신순, 페이지네이션)
-  - `GET /api/meetings/[id]` — 상세
-  - `PUT /api/meetings/[id]` — markdown 편집 저장
-  - `DELETE /api/meetings/[id]`
+- [x] **#1 Prisma 연결 + 마이그레이션 파이프라인** — PR `feat/phase-1-foundation`
+  - [x] `src/lib/db.ts` 싱글톤 Prisma 클라이언트
+  - [x] 첫 마이그레이션 생성 (`prisma migrate dev`)
+  - [x] docker-compose `tools` 프로필에 `migrate` 서비스 추가
+  - [x] Meeting 스키마 확장 (attendees/tags/template/depth/summaryMode/customPrompt)
+- [x] **#2 회의 저장 API** — PR `feat/phase-1-foundation`
+  - [x] `POST /api/meetings` — transcript + markdown 저장
+  - [x] `GET /api/meetings` — 목록 조회 (최신순, 페이지네이션, q 부분검색)
+  - [x] `GET /api/meetings/[id]` — 상세
+  - [x] `PUT /api/meetings/[id]` — markdown/title/attendees/tags 편집
+  - [x] `DELETE /api/meetings/[id]`
 - [ ] **#3 MinutesViewer에 "저장" 버튼**
   - 생성된 회의록 현재 세션에서 저장 → 토스트 알림
   - 저장 성공 시 `/meetings/[id]` 링크 제공
