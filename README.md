@@ -6,7 +6,7 @@
 
 ---
 
-## 현재 기능 (Phase 0)
+## 현재 기능 (Phase 0 + 0.5)
 
 ### 녹음 & 전사
 - 브라우저 실시간 음성 인식 (Web Speech API · Chrome `ko-KR`)
@@ -22,11 +22,30 @@
 - Gemini 실패 시 **단순 변환 마크다운으로 자동 폴백** — 결과물은 항상 보장
 - 내보내기: Markdown(.md), HTML(.html), 클립보드 복사
 
+### 템플릿 & 강도 조절 (Phase 0.5)
+용도에 맞게 출력 구조와 요약 깊이를 조절할 수 있음.
+
+| 템플릿 | 생성되는 구조 | 기본 강도 | 라이브 요약 |
+|---|---|---|---|
+| 🗂️ 회의록 | 요약 / 논의 / 액션 / 결정 | 표준 | ✅ |
+| 🎓 강의·세미나 노트 | 핵심 개념 / 예시 / 인용 / 후속 질문 | 상세 | ✅ |
+| 🤝 1:1 미팅 | 주제 / 고민 / 피드백 / 다음 액션 | 표준 | ✅ |
+| 💡 브레인스토밍 | 카테고리별 아이디어 / 즉시 시도 / 보류 | 상세 | ✅ |
+| 🎤 인터뷰 | Q&A 포맷 / 인상적 발언 / 종합 | 표준 | ❌ |
+| 📝 원문 정리 | 요약 없이 문단화·오탈자 정리만 | 상세 고정 | ❌ |
+| ⚙️ 커스텀 | 자유 프롬프트 입력 | - | ✅ |
+
+강도 3단계:
+- **간결** — 각 섹션 3줄 이내
+- **표준** — 맥락이 이해될 정도
+- **상세** — 세부사항·수치 누락 없이 보존
+
 ### 화면
 - 녹음 시 **좌(실시간 텍스트) · 우(실시간 회의록)** 분할 뷰
 - 확정 전 interim 텍스트는 회색 이탤릭 + 깜빡이는 커서
 - 새 내용 도착 시 자동 스크롤
 - 진행률 바 (첫 요약까지 단어 수), 쿨다운 카운터
+- 템플릿/강도 변경 시 라이브 요약도 즉시 반영
 
 ---
 
@@ -38,7 +57,7 @@
 | STT (실시간) | Web Speech API — Chrome 내장, 무료 |
 | AI 요약 | Gemini 2.5 Flash Lite — 무료 등급 15 RPM / 1000 RPD |
 | DB | PostgreSQL 16 + Prisma 7 (스키마 준비, Phase 1에서 활용 예정) |
-| 테스트 | Vitest (38 tests, jsdom) |
+| 테스트 | Vitest (57 tests, jsdom) |
 | 배포 | Docker Compose (app + db + test profile) |
 
 ---
@@ -118,8 +137,9 @@ src/
 │   ├── audio-validation.ts
 │   ├── upload-handler.ts
 │   ├── transcript-formatter.ts
-│   ├── minutes-generator.ts             # 최종 요약 생성
-│   ├── live-summary.ts                  # 롤링 요약 생성
+│   ├── templates.ts                     # 템플릿 레지스트리 + 프롬프트 빌더
+│   ├── minutes-generator.ts             # 최종 요약 생성 (템플릿 적용)
+│   ├── live-summary.ts                  # 롤링 요약 생성 (템플릿 적용)
 │   └── export-minutes.ts
 ├── hooks/
 │   ├── useSpeechRecognition.ts          # Web Speech API + 네트워크 재시도
@@ -128,7 +148,7 @@ src/
 │   ├── upload/AudioUploader.tsx
 │   ├── recorder/LiveRecorder.tsx        # 좌우 분할 뷰
 │   └── minutes/MinutesViewer.tsx
-└── __tests__/                           # 38 tests
+└── __tests__/                           # 57 tests
 
 docs/
 ├── ROADMAP.md                           # 개발 로드맵 (Phase 0~4)
@@ -147,10 +167,11 @@ prisma/
 | Phase | 내용 | 상태 |
 |---|---|---|
 | **0** | 실시간 전사 + 롤링 요약 + 자동 최종 생성 | ✅ 완료 |
+| **0.5** | 템플릿 (6종) + 강도 조절 (3단계) + 커스텀 프롬프트 | ✅ 완료 |
 | **1** | 회의 저장/조회/검색 워크스페이스 | 📋 기획됨 |
 | **2** | 구조화된 액션 아이템 (Gemini JSON + 체크리스트) | 📋 기획됨 |
 | **3** | 참석자 + 태그 시스템 | 📋 기획됨 |
-| **4** | 차별화 기능 (화자 구분, 캘린더, AI Q&A, 블록 에디터) | 💡 선택 |
+| **4** | 차별화 기능 (캘린더, AI Q&A, 블록 에디터) | 💡 선택 |
 
 ### 진행 관리
 1. `gh auth login` 후 `bash docs/CREATE_ISSUES.sh` — 4개 epic issue 자동 생성
@@ -162,7 +183,7 @@ prisma/
 
 ## 알려진 제약
 
-- **Chrome 전용**: Web Speech API 비표준 — Safari/Firefox는 제한적 (Phase 4 #15에서 서버 사이드 전사로 해결 예정)
-- **화자 구분 불가**: Web Speech API가 지원하지 않음. Phase 4 #15에서 Gemini 2.5 오디오 입력 또는 AssemblyAI 경로 계획됨
+- **Chrome 전용**: Web Speech API 비표준 — Safari/Firefox는 제한적
+- **화자 구분 불가**: 의도적 비지원 (개인용 범위를 넘음)
 - **녹음 저장 없음**: 현재 페이지 세션 내에서만 유지됨. Phase 1에서 DB 영속화
 - **Gemini 무료 등급**: 15 RPM / 1000 RPD — 개인 사용에 충분하나 팀 단위는 유료 전환 권장

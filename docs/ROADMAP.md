@@ -24,9 +24,25 @@
 
 ### 알려진 제약
 - Chrome 전용 (Web Speech API)
-- 화자 구분 불가 (Web Speech API 한계)
+- 화자 구분 불가 — 의도적 비지원 (Non-goal)
 - 녹음 저장/조회 불가 (DB 미사용)
 - Web Speech 세션이 가끔 끊김 → 자동 재연결로 완화
+
+---
+
+## ✅ Phase 0.5 — 템플릿 + 강도 조절 (완료)
+
+사용자가 회의록 외 다양한 용도로 쓸 수 있도록 템플릿 시스템과 강도 조절 도입.
+
+### 구현됨
+- [x] 6개 프리셋 템플릿 (회의록, 강의·세미나, 1:1 미팅, 브레인스토밍, 인터뷰, 원문 정리)
+- [x] 커스텀 프롬프트 옵션 (파워 유저용 자유 입력)
+- [x] 3단계 강도 조절 (간결 / 표준 / 상세)
+- [x] 템플릿별 기본 강도 프리셋 (예: 강의는 상세, 회의록은 표준)
+- [x] 템플릿별 라이브 요약 지원 플래그 (raw/interview는 종료 시 한 번만)
+- [x] Gemini 모드에서만 노출, 단순 변환은 기존 동작 유지
+- [x] 라이브 요약도 동일 템플릿/강도 적용
+- [x] 프롬프트 빌더 단위 테스트 19개
 
 ---
 
@@ -104,42 +120,6 @@
 
 ## 🎯 Phase 4 — 차별화 기능 (선택, 각 1~2주)
 
-### #15 화자 구분 (Speaker Diarization)
-Web Speech API는 화자 구분을 지원하지 않음. 후처리 전략이 필요.
-
-**접근 방법 비교:**
-
-| 방법 | 정확도 | 비용 | 한국어 | 실시간 |
-|---|---|---|---|---|
-| **Gemini 2.5 Flash (오디오 입력)** | 중 | 무료 (RPM 한도 내) | 좋음 | ❌ 후처리만 |
-| **AssemblyAI** | 매우 높음 | $0.15/hr (5hr/월 무료) | 좋음 | ✅ 가능 |
-| **Deepgram Nova-2** | 높음 | $0.43/hr ($200 무료 크레딧) | 보통 | ✅ 가능 |
-| **Google Cloud STT** | 높음 | $1.44/hr | 좋음 | ✅ 가능 |
-
-**권장 구조 — 하이브리드:**
-```
-[클라이언트]
-  ├─ Web Speech API → 실시간 미리보기 (기존)
-  └─ MediaRecorder → audio blob 누적 (신규)
-
-[녹음 종료]
-  └─ POST /api/transcribe-with-speakers (audio blob)
-     └─ Gemini 2.5 Flash OR AssemblyAI
-        └─ 화자 라벨 붙은 최종 transcript
-           └─ 기존 /api/summarize 파이프라인 재사용
-```
-
-**이점:**
-- 녹음 중에는 지금처럼 빠른 미리보기 유지
-- 종료 후 고품질 화자 구분 transcript로 최종 회의록 생성
-- 개인용이면 Gemini 2.5로 무료 처리 가능
-
-**세부 이슈:**
-- [ ] **#15a** 클라이언트에 MediaRecorder 병행 녹음 (WebM/Opus)
-- [ ] **#15b** `/api/transcribe-with-speakers` — Gemini 2.5 Flash audio input
-- [ ] **#15c** 화자 라벨 transcript 뷰 (화자별 색상 배지)
-- [ ] **#15d** AssemblyAI 어댑터 (옵션, 정확도 업그레이드 경로)
-
 ### #16 Google Calendar 연동 (1~2주)
 - OAuth 플로우 (`next-auth` + Google provider)
 - 오늘 회의 목록 표시
@@ -167,6 +147,7 @@ Web Speech API는 화자 구분을 지원하지 않음. 후처리 전략이 필�
 
 다음 기능은 개인 사용 목적에 부합하지 않아 **의도적으로 범위 밖**:
 
+- **화자 구분 (Speaker Diarization)** — 유료 API 비용/복잡도 대비 개인용에 과함
 - **실시간 공동 편집 (CRDT)** — Yjs/Liveblocks 도입 복잡도 대비 이득 없음
 - **권한 관리 / 워크스페이스** — 단일 사용자 가정
 - **모바일 네이티브 앱** — 웹 PWA로 충분

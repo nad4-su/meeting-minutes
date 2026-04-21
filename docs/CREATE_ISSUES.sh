@@ -81,20 +81,22 @@ BODY
 )"
 
 gh issue create \
-  --title "[Epic] Phase 4 — 차별화 기능 (화자 구분, 캘린더, AI Q&A)" \
+  --title "[Epic] Phase 4 — 차별화 기능 (캘린더, AI Q&A)" \
   --label "epic,phase-4" \
   --body "$(cat <<'BODY'
 선택적 고급 기능. 각 이슈 단독 진행 가능. 세부: [docs/ROADMAP.md](../blob/main/docs/ROADMAP.md).
 
 ## 하위 작업
-- [ ] #15 화자 구분 (Gemini 2.5 audio input + MediaRecorder 하이브리드)
 - [ ] #16 Google Calendar 연동
 - [ ] #17 AI Q&A (RAG with pgvector)
 - [ ] #18 후속 이메일 초안 생성
 - [ ] #19 블록 기반 에디터 (우선순위 낮음)
 
+## Non-goal
+- 화자 구분은 개인용 범위에 과하여 비목표로 이전
+
 ## 완료 기준
-각 sub-issue 독립 완료. 전체 Phase 4 완료는 #15 + #18 최소 달성 시 간주.
+각 sub-issue 독립 완료. 전체 Phase 4 완료는 #18 최소 달성 시 간주.
 BODY
 )"
 
