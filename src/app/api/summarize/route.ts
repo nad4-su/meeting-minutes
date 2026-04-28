@@ -3,13 +3,22 @@ import {
   generateGeminiMinutes,
   generateSimpleMinutes,
 } from '@/lib/minutes-generator'
+import { resolveGeminiApiKey } from '@/lib/api-keys'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { title, transcript, mode, date, template, depth, customPrompt } =
-      body
+    const {
+      title,
+      transcript,
+      mode,
+      date,
+      template,
+      depth,
+      customPrompt,
+      apiKey,
+    } = body
 
     if (!transcript || typeof transcript !== 'string') {
       return Response.json(
@@ -29,8 +38,18 @@ export async function POST(request: NextRequest) {
     }
 
     if (mode === 'gemini') {
-      const apiKey = process.env.GEMINI_API_KEY ?? ''
-      const result = await generateGeminiMinutes(input, { apiKey })
+      const resolvedKey = resolveGeminiApiKey(apiKey)
+      if (!resolvedKey) {
+        const fallback = generateSimpleMinutes(input)
+        return Response.json({
+          markdown: fallback,
+          mode: 'simple',
+          warning:
+            'Gemini API 키가 설정되지 않아 단순 변환으로 대체되었습니다. /settings에서 키를 설정하세요.',
+        })
+      }
+
+      const result = await generateGeminiMinutes(input, { apiKey: resolvedKey })
 
       if (!result.success) {
         const fallback = generateSimpleMinutes(input)

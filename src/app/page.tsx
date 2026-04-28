@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { AudioUploader } from '@/components/upload/AudioUploader'
 import { LiveRecorder } from '@/components/recorder/LiveRecorder'
 import { MinutesViewer } from '@/components/minutes/MinutesViewer'
+import { getStoredApiKey } from '@/lib/api-key-storage'
 import {
   TEMPLATES,
   DEFAULT_TEMPLATE_ID,
@@ -118,6 +119,7 @@ export default function HomePage() {
           template,
           depth,
           customPrompt: template === 'custom' ? customPrompt : undefined,
+          apiKey: getStoredApiKey(),
         }),
       })
       const data = await res.json()
@@ -157,12 +159,20 @@ export default function HomePage() {
           <p className="mt-2 text-neutral-500">
             음성을 텍스트로, 용도에 맞는 템플릿으로 정리
           </p>
-          <Link
-            href="/meetings"
-            className="absolute right-0 top-1 text-sm text-neutral-500 hover:text-neutral-800 transition-colors"
-          >
-            📚 저장된 회의록 →
-          </Link>
+          <div className="absolute right-0 top-1 flex gap-3 text-sm text-neutral-500">
+            <Link
+              href="/meetings"
+              className="hover:text-neutral-800 transition-colors"
+            >
+              📚 회의록
+            </Link>
+            <Link
+              href="/settings"
+              className="hover:text-neutral-800 transition-colors"
+            >
+              ⚙️ 설정
+            </Link>
+          </div>
         </header>
 
         <section className="mb-8">

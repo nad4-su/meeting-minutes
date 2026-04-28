@@ -46,6 +46,25 @@
 
 ---
 
+## ✅ Phase 1.5 — 웹 기반 API 키 설정 (완료)
+
+`.env`를 만지지 않고도 브라우저에서 Gemini 키를 설정할 수 있도록 함.
+
+### 구현됨
+- [x] `/settings` 페이지 — 키 입력 / 저장 / 삭제 / 마스킹된 현재 키 표시
+- [x] LocalStorage 저장 (서버 DB에 보관 X — 개인용/단일 인스턴스 가정)
+- [x] `/api/settings/status` — 환경변수 키 존재 여부 (값 노출 X)
+- [x] `/api/settings/test` — 키로 가벼운 Gemini 호출 시도 → 200/401/429 등 분류
+- [x] `resolveGeminiApiKey()` 우선순위: 요청 body 키 → 환경변수 → null
+- [x] summarize / summarize-live 라우트가 body의 `apiKey` 사용
+- [x] 단위 테스트 14개 (api-keys 7 + api-key-storage 7)
+
+### 의도된 비목표
+- 다중 사용자 / 권한 관리 — 개인용 단일 인스턴스
+- 키 암호화 — 평문 LocalStorage (현재 .env 신뢰 모델과 동일)
+
+---
+
 ## ✅ Phase 1 — 회의 저장/조회 (완료)
 
 노션의 **Meeting Database** 수준. 생성한 회의록을 저장하고 다시 찾아볼 수 있음.

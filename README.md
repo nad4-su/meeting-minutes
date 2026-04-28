@@ -6,7 +6,7 @@
 
 ---
 
-## 현재 기능 (Phase 0 + 0.5 + 1)
+## 현재 기능 (Phase 0 + 0.5 + 1 + 1.5)
 
 ### 녹음 & 전사
 - 브라우저 실시간 음성 인식 (Web Speech API · Chrome `ko-KR`)
@@ -40,6 +40,14 @@
 - **표준** — 맥락이 이해될 정도
 - **상세** — 세부사항·수치 누락 없이 보존
 
+### Gemini 키 웹 설정 (Phase 1.5)
+- **`/settings` 페이지** — 헤더 ⚙️ 링크로 진입
+- 브라우저 LocalStorage에 저장 (서버 DB 미사용)
+- 마스킹된 현재 키 표시 (`AIza••••XYZ12`), 보이기/숨기기 토글
+- **🧪 테스트 호출** — 가벼운 Gemini 응답으로 키 유효성 검증
+- 우선순위: 브라우저 키 → 환경변수 → 단순 변환 폴백
+- 키 미설정 시에도 단순 변환 모드로 회의록은 항상 생성됨
+
 ### 저장·조회 워크스페이스 (Phase 1)
 - **`📌 저장` 버튼** — 생성된 회의록을 DB에 영속 저장
 - **`/meetings` 목록 페이지** — 카드 그리드, 페이지네이션, 빈 상태 UI
@@ -68,7 +76,7 @@
 | AI 요약 | Gemini 2.5 Flash Lite — 무료 등급 15 RPM / 1000 RPD |
 | DB | PostgreSQL 16 + Prisma 7 (driver adapter `@prisma/adapter-pg`) |
 | Markdown | `marked` + `isomorphic-dompurify` |
-| 테스트 | Vitest (80 tests, jsdom) |
+| 테스트 | Vitest (94 tests, jsdom) |
 | 배포 | Docker Compose (app + db + test profile) |
 
 ---
@@ -83,8 +91,11 @@ cd meeting-minutes
 cp .env.example .env
 ```
 
-`.env`에서 **`GEMINI_API_KEY`** 설정 ([Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급).
-> 키가 없어도 "단순 변환" 모드는 정상 동작.
+**Gemini API 키 설정 — 두 가지 방법 중 선택**:
+- (A) **웹 UI** — 앱 기동 후 `/settings` 페이지에서 입력 (브라우저 LocalStorage 저장, 추천)
+- (B) **`.env` 환경변수** — `GEMINI_API_KEY=AIza...` 작성 ([Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급)
+
+> 키가 없어도 "단순 변환" 모드는 정상 동작. Gemini 모드를 쓰려면 둘 중 하나는 필요.
 
 ### 2. DB 마이그레이션 (최초 1회 + 스키마 변경 시)
 
@@ -152,17 +163,23 @@ src/
 │   │   ├── upload/route.ts              # 파일 업로드
 │   │   ├── summarize/route.ts           # 최종 회의록 (Gemini + simple fallback)
 │   │   ├── summarize-live/route.ts      # 실시간 중간 요약
-│   │   └── meetings/
-│   │       ├── route.ts                 # GET 목록 (q 검색) / POST 저장
-│   │       └── [id]/route.ts            # GET / PUT / DELETE 상세
+│   │   ├── meetings/
+│   │   │   ├── route.ts                 # GET 목록 (q 검색) / POST 저장
+│   │   │   └── [id]/route.ts            # GET / PUT / DELETE 상세
+│   │   └── settings/
+│   │       ├── status/route.ts          # 환경변수 키 설정 여부
+│   │       └── test/route.ts            # 키 유효성 검증 (가벼운 Gemini 호출)
 │   ├── meetings/
 │   │   ├── page.tsx                     # 저장된 회의록 목록 + 검색
 │   │   └── [id]/page.tsx                # 상세 + 편집 + 삭제
+│   ├── settings/page.tsx                # 키 설정 페이지 (LocalStorage)
 │   ├── page.tsx                         # 메인 UI (녹음/요약)
 │   └── layout.tsx
 ├── lib/
 │   ├── db.ts                            # Prisma 싱글톤 (pg adapter)
 │   ├── markdown.ts                      # marked + DOMPurify 렌더 유틸
+│   ├── api-keys.ts                      # 서버: 요청 키 → env fallback 우선순위
+│   ├── api-key-storage.ts               # 클라이언트: LocalStorage 헬퍼 + 마스킹
 │   ├── audio-validation.ts
 │   ├── upload-handler.ts
 │   ├── transcript-formatter.ts
@@ -181,7 +198,7 @@ src/
 │       ├── MeetingCard.tsx
 │       ├── MeetingSearchBar.tsx         # debounce + URL 동기화
 │       └── MeetingDetail.tsx            # 상세/편집 UI
-└── __tests__/                           # 80 tests
+└── __tests__/                           # 94 tests
 
 docs/
 ├── ROADMAP.md                           # 개발 로드맵 (Phase 0~4)
@@ -203,6 +220,7 @@ prisma/
 | **0** | 실시간 전사 + 롤링 요약 + 자동 최종 생성 | ✅ 완료 |
 | **0.5** | 템플릿 (6종) + 강도 조절 (3단계) + 커스텀 프롬프트 | ✅ 완료 |
 | **1** | 회의 저장/조회/검색 워크스페이스 | ✅ 완료 |
+| **1.5** | 웹에서 Gemini 키 설정 (LocalStorage) | ✅ 완료 |
 | **2** | 구조화된 액션 아이템 (Gemini JSON + 체크리스트) | 📋 기획됨 |
 | **3** | 참석자 + 태그 시스템 | 📋 기획됨 |
 | **4** | 차별화 기능 (캘린더, AI Q&A, 블록 에디터) | 💡 선택 |
