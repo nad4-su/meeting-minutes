@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TranscriptChunk } from '@/lib/transcript-formatter'
 import { formatTranscriptChunks } from '@/lib/transcript-formatter'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
+import { getStoredApiKey } from '@/lib/api-key-storage'
 
 interface UseLiveSummaryOptions {
   enabled: boolean
@@ -118,6 +119,7 @@ export function useLiveSummary(
             template: configRef.current.template,
             depth: configRef.current.depth,
             customPrompt: configRef.current.customPrompt,
+            apiKey: getStoredApiKey(),
           }),
           signal: controller.signal,
         })
