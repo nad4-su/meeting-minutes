@@ -6,7 +6,7 @@
 
 ---
 
-## 현재 기능 (Phase 0 + 0.5)
+## 현재 기능 (Phase 0 + 0.5 + 1 + 1.5 + 2)
 
 ### 녹음 & 전사
 - 브라우저 실시간 음성 인식 (Web Speech API · Chrome `ko-KR`)
@@ -40,12 +40,38 @@
 - **표준** — 맥락이 이해될 정도
 - **상세** — 세부사항·수치 누락 없이 보존
 
+### 액션 아이템 (Phase 2)
+- 회의록 저장 시 마크다운의 `- [ ]` 항목을 자동으로 추출 → DB에 구조화 저장
+- 상세 페이지에 **체크리스트 섹션** — 체크박스 토글로 완료 표시
+- 개별 항목 삭제, 마크다운 편집 후 **🔄 재추출** 버튼으로 동기화
+- `/meetings` 상단에 "내 미완료 액션 (최근 5)" 위젯
+- 회의 카드에 미완료 카운트 배지 (예: `✅ 3 미완료`)
+- **Google Docs 호환 복사** — `📋 Docs용` 버튼으로 서식 유지 (heading/list/bold/code) 채로 클립보드에 복사 → Docs/Word/Notion에 그대로 붙여넣기
+
+### Gemini 키 웹 설정 (Phase 1.5)
+- **`/settings` 페이지** — 헤더 ⚙️ 링크로 진입
+- 브라우저 LocalStorage에 저장 (서버 DB 미사용)
+- 마스킹된 현재 키 표시 (`AIza••••XYZ12`), 보이기/숨기기 토글
+- **🧪 테스트 호출** — 가벼운 Gemini 응답으로 키 유효성 검증
+- 우선순위: 브라우저 키 → 환경변수 → 단순 변환 폴백
+- 키 미설정 시에도 단순 변환 모드로 회의록은 항상 생성됨
+
+### 저장·조회 워크스페이스 (Phase 1)
+- **`📌 저장` 버튼** — 생성된 회의록을 DB에 영속 저장
+- **`/meetings` 목록 페이지** — 카드 그리드, 페이지네이션, 빈 상태 UI
+- **`/meetings/[id]` 상세 페이지** — Markdown 렌더 + 인라인 편집 + 삭제
+  - 편집 모드는 좌(textarea) · 우(live preview) 분할
+  - 참석자/태그도 상세 페이지에서 편집
+- **검색 바** — 제목·transcript·본문 부분 검색 (300ms debounce, URL 동기화)
+- **Markdown 라이브러리** — `marked` + `isomorphic-dompurify`로 안전한 HTML 렌더 (표/리스트/인용 등 모두 정상)
+
 ### 화면
 - 녹음 시 **좌(실시간 텍스트) · 우(실시간 회의록)** 분할 뷰
 - 확정 전 interim 텍스트는 회색 이탤릭 + 깜빡이는 커서
 - 새 내용 도착 시 자동 스크롤
 - 진행률 바 (첫 요약까지 단어 수), 쿨다운 카운터
 - 템플릿/강도 변경 시 라이브 요약도 즉시 반영
+- 메인 화면 상단 우측 `📚 저장된 회의록` 링크 → 목록으로 이동
 
 ---
 
@@ -56,8 +82,9 @@
 | 프레임워크 | Next.js 16 (App Router) + TypeScript |
 | STT (실시간) | Web Speech API — Chrome 내장, 무료 |
 | AI 요약 | Gemini 2.5 Flash Lite — 무료 등급 15 RPM / 1000 RPD |
-| DB | PostgreSQL 16 + Prisma 7 (스키마 준비, Phase 1에서 활용 예정) |
-| 테스트 | Vitest (71 tests, jsdom) |
+| DB | PostgreSQL 16 + Prisma 7 (driver adapter `@prisma/adapter-pg`) |
+| Markdown | `marked` + `isomorphic-dompurify` |
+| 테스트 | Vitest (102 tests, jsdom) |
 | 배포 | Docker Compose (app + db + test profile) |
 
 ---
@@ -72,8 +99,11 @@ cd meeting-minutes
 cp .env.example .env
 ```
 
-`.env`에서 **`GEMINI_API_KEY`** 설정 ([Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급).
-> 키가 없어도 "단순 변환" 모드는 정상 동작.
+**Gemini API 키 설정 — 두 가지 방법 중 선택**:
+- (A) **웹 UI** — 앱 기동 후 `/settings` 페이지에서 입력 (브라우저 LocalStorage 저장, 추천)
+- (B) **`.env` 환경변수** — `GEMINI_API_KEY=AIza...` 작성 ([Google AI Studio](https://aistudio.google.com/apikey)에서 무료 발급)
+
+> 키가 없어도 "단순 변환" 모드는 정상 동작. Gemini 모드를 쓰려면 둘 중 하나는 필요.
 
 ### 2. DB 마이그레이션 (최초 1회 + 스키마 변경 시)
 
@@ -91,13 +121,15 @@ docker compose up -d --build
 
 브라우저에서 [http://localhost:3000](http://localhost:3000) 접속 → **Chrome 권장** (Web Speech API).
 
-### 3. 확인 방법
+### 4. 확인 방법
 
 1. 회의 제목 입력 (선택)
-2. **Gemini AI 요약** 모드 (기본값)
+2. **Gemini AI 요약** 모드 + 원하는 **템플릿** / **강도** 선택
 3. **녹음 시작** → 마이크 권한 허용
 4. 말하기 시작 → 좌측 실시간 텍스트, 25단어 이상 쌓이면 우측에 중간 회의록 생성
 5. **녹음 중지** → 최종 회의록이 페이지 하단에 자동 생성됨
+6. **`📌 저장`** 버튼 → `/meetings/[id]`로 영속화
+7. 상단 **`📚 저장된 회의록`** 링크 → 목록·검색·편집
 
 ### 서비스 관리
 
@@ -138,10 +170,29 @@ src/
 │   ├── api/
 │   │   ├── upload/route.ts              # 파일 업로드
 │   │   ├── summarize/route.ts           # 최종 회의록 (Gemini + simple fallback)
-│   │   └── summarize-live/route.ts      # 실시간 중간 요약
-│   ├── page.tsx                         # 메인 UI
+│   │   ├── summarize-live/route.ts      # 실시간 중간 요약
+│   │   ├── meetings/
+│   │   │   ├── route.ts                          # GET 목록 (q 검색) / POST 저장
+│   │   │   └── [id]/
+│   │   │       ├── route.ts                      # GET / PUT / DELETE 상세
+│   │   │       └── reparse-action-items/route.ts # POST 마크다운 재파싱
+│   │   ├── action-items/
+│   │   │   └── [id]/route.ts            # PATCH 토글 / DELETE
+│   │   └── settings/
+│   │       ├── status/route.ts          # 환경변수 키 설정 여부
+│   │       └── test/route.ts            # 키 유효성 검증 (가벼운 Gemini 호출)
+│   ├── meetings/
+│   │   ├── page.tsx                     # 저장된 회의록 목록 + 검색
+│   │   └── [id]/page.tsx                # 상세 + 편집 + 삭제
+│   ├── settings/page.tsx                # 키 설정 페이지 (LocalStorage)
+│   ├── page.tsx                         # 메인 UI (녹음/요약)
 │   └── layout.tsx
 ├── lib/
+│   ├── db.ts                            # Prisma 싱글톤 (pg adapter)
+│   ├── markdown.ts                      # marked + DOMPurify 렌더 + Docs용 서식 복사
+│   ├── action-items.ts                  # 마크다운 - [ ] 휴리스틱 파서
+│   ├── api-keys.ts                      # 서버: 요청 키 → env fallback 우선순위
+│   ├── api-key-storage.ts               # 클라이언트: LocalStorage 헬퍼 + 마스킹
 │   ├── audio-validation.ts
 │   ├── upload-handler.ts
 │   ├── transcript-formatter.ts
@@ -155,15 +206,21 @@ src/
 ├── components/
 │   ├── upload/AudioUploader.tsx
 │   ├── recorder/LiveRecorder.tsx        # 좌우 분할 뷰
-│   └── minutes/MinutesViewer.tsx
-└── __tests__/                           # 71 tests
+│   ├── minutes/MinutesViewer.tsx        # 미리보기/원문 토글 + 저장
+│   └── meeting/
+│       ├── MeetingCard.tsx              # 미완료 액션 카운트 배지 포함
+│       ├── MeetingSearchBar.tsx         # debounce + URL 동기화
+│       ├── MeetingDetail.tsx            # 상세/편집 UI + Docs용 복사
+│       └── ActionItemList.tsx           # 체크박스 토글 + 재추출 + 삭제
+└── __tests__/                           # 102 tests
 
 docs/
 ├── ROADMAP.md                           # 개발 로드맵 (Phase 0~4)
 └── CREATE_ISSUES.sh                     # gh CLI용 이슈 자동 생성 스크립트
 
 prisma/
-└── schema.prisma                        # Meeting 모델 (Phase 1에서 활용)
+├── schema.prisma                        # Meeting 모델
+└── migrations/                          # 마이그레이션 히스토리
 ```
 
 ---
@@ -176,8 +233,9 @@ prisma/
 |---|---|---|
 | **0** | 실시간 전사 + 롤링 요약 + 자동 최종 생성 | ✅ 완료 |
 | **0.5** | 템플릿 (6종) + 강도 조절 (3단계) + 커스텀 프롬프트 | ✅ 완료 |
-| **1** | 회의 저장/조회/검색 워크스페이스 | 📋 기획됨 |
-| **2** | 구조화된 액션 아이템 (Gemini JSON + 체크리스트) | 📋 기획됨 |
+| **1** | 회의 저장/조회/검색 워크스페이스 | ✅ 완료 |
+| **1.5** | 웹에서 Gemini 키 설정 (LocalStorage) | ✅ 완료 |
+| **2** | 액션 아이템 추출/체크리스트 + Google Docs 복사 | ✅ 완료 |
 | **3** | 참석자 + 태그 시스템 | 📋 기획됨 |
 | **4** | 차별화 기능 (캘린더, AI Q&A, 블록 에디터) | 💡 선택 |
 
@@ -193,5 +251,5 @@ prisma/
 
 - **Chrome 전용**: Web Speech API 비표준 — Safari/Firefox는 제한적
 - **화자 구분 불가**: 의도적 비지원 (개인용 범위를 넘음)
-- **녹음 저장 없음**: 현재 페이지 세션 내에서만 유지됨. Phase 1에서 DB 영속화
 - **Gemini 무료 등급**: 15 RPM / 1000 RPD — 개인 사용에 충분하나 팀 단위는 유료 전환 권장
+- **검색**: 현재 PostgreSQL `ILIKE`(contains) 방식. 수천 건 이상 저장 시 `tsvector` GIN 인덱스로 후속 업그레이드 예정

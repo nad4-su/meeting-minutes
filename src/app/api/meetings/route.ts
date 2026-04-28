@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
+import { parseActionItems } from '@/lib/action-items'
+
+export const dynamic = 'force-dynamic'
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
@@ -40,6 +43,9 @@ export async function GET(request: NextRequest) {
           template: true,
           summaryMode: true,
           status: true,
+          _count: {
+            select: { actionItems: { where: { isDone: false } } },
+          },
         },
       }),
       prisma.meeting.count({ where }),
@@ -89,6 +95,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const parsed = parseActionItems(markdownMinutes)
+
     const meeting = await prisma.meeting.create({
       data: {
         title: title.trim(),
@@ -105,7 +113,15 @@ export async function POST(request: NextRequest) {
           ? tags.filter((t) => typeof t === 'string')
           : [],
         status: 'COMPLETED',
+        actionItems: {
+          create: parsed.map((item, index) => ({
+            task: item.task,
+            isDone: item.isDone,
+            position: index,
+          })),
+        },
       },
+      include: { actionItems: true },
     })
 
     return Response.json(meeting, { status: 201 })

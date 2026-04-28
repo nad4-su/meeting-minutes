@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
 
+export const dynamic = 'force-dynamic'
+
 interface RouteContext {
   params: Promise<{ id: string }>
 }
@@ -8,7 +10,12 @@ interface RouteContext {
 export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
-    const meeting = await prisma.meeting.findUnique({ where: { id } })
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: {
+        actionItems: { orderBy: { position: 'asc' } },
+      },
+    })
 
     if (!meeting) {
       return Response.json(

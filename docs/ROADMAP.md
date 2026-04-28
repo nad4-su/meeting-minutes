@@ -46,13 +46,32 @@
 
 ---
 
-## 🎯 Phase 1 — 회의 저장/조회 (1~2주)
+## ✅ Phase 1.5 — 웹 기반 API 키 설정 (완료)
 
-노션의 **Meeting Database** 수준. 생성한 회의록을 저장하고 다시 찾아볼 수 있게 함.
+`.env`를 만지지 않고도 브라우저에서 Gemini 키를 설정할 수 있도록 함.
+
+### 구현됨
+- [x] `/settings` 페이지 — 키 입력 / 저장 / 삭제 / 마스킹된 현재 키 표시
+- [x] LocalStorage 저장 (서버 DB에 보관 X — 개인용/단일 인스턴스 가정)
+- [x] `/api/settings/status` — 환경변수 키 존재 여부 (값 노출 X)
+- [x] `/api/settings/test` — 키로 가벼운 Gemini 호출 시도 → 200/401/429 등 분류
+- [x] `resolveGeminiApiKey()` 우선순위: 요청 body 키 → 환경변수 → null
+- [x] summarize / summarize-live 라우트가 body의 `apiKey` 사용
+- [x] 단위 테스트 14개 (api-keys 7 + api-key-storage 7)
+
+### 의도된 비목표
+- 다중 사용자 / 권한 관리 — 개인용 단일 인스턴스
+- 키 암호화 — 평문 LocalStorage (현재 .env 신뢰 모델과 동일)
+
+---
+
+## ✅ Phase 1 — 회의 저장/조회 (완료)
+
+노션의 **Meeting Database** 수준. 생성한 회의록을 저장하고 다시 찾아볼 수 있음.
 
 ### Issues
 - [x] **#1 Prisma 연결 + 마이그레이션 파이프라인** — PR `feat/phase-1-foundation`
-  - [x] `src/lib/db.ts` 싱글톤 Prisma 클라이언트
+  - [x] `src/lib/db.ts` 싱글톤 Prisma 클라이언트 (Prisma 7 driver adapter 경유)
   - [x] 첫 마이그레이션 생성 (`prisma migrate dev`)
   - [x] docker-compose `tools` 프로필에 `migrate` 서비스 추가
   - [x] Meeting 스키마 확장 (attendees/tags/template/depth/summaryMode/customPrompt)
@@ -62,44 +81,52 @@
   - [x] `GET /api/meetings/[id]` — 상세
   - [x] `PUT /api/meetings/[id]` — markdown/title/attendees/tags 편집
   - [x] `DELETE /api/meetings/[id]`
-- [ ] **#3 MinutesViewer에 "저장" 버튼**
-  - 생성된 회의록 현재 세션에서 저장 → 토스트 알림
-  - 저장 성공 시 `/meetings/[id]` 링크 제공
-- [ ] **#4 회의 목록 페이지** (`/meetings`)
-  - 카드 그리드 (제목, 날짜, 앞 2줄 미리보기, 태그)
-  - 빈 상태 UI ("첫 회의를 녹음해보세요")
-- [ ] **#5 회의 상세 페이지** (`/meetings/[id]`)
-  - Transcript + Markdown 렌더링
-  - 인라인 편집 (markdown editor 도입 — 아래 #6)
-  - 삭제 버튼
-- [ ] **#6 Markdown 렌더링 라이브러리 도입**
-  - `marked` + `isomorphic-dompurify`
-  - 기존 커스텀 파서(`export-minutes.ts`) 교체 — 표/리스트/인라인 스타일 정상 렌더
-- [ ] **#7 전역 검색**
-  - Postgres `tsvector` 전체 텍스트 인덱스 (transcript + markdown)
-  - `/api/meetings?q=...` 엔드포인트
-  - 헤더에 검색 바 추가
+- [x] **#3 MinutesViewer에 "저장" 버튼** — PR `feat/phase-1-ui`
+  - [x] 생성된 회의록 세션에서 저장 → 배너 + 상세 링크
+  - [x] 미리보기 / 원문 토글
+- [x] **#4 회의 목록 페이지** (`/meetings`) — PR `feat/phase-1-ui`
+  - [x] 카드 그리드 (제목, 날짜, preview, 태그, 참석자, 템플릿 배지)
+  - [x] 빈 상태 UI
+  - [x] 페이지네이션
+- [x] **#5 회의 상세 페이지** (`/meetings/[id]`) — PR `feat/phase-1-ui`
+  - [x] Markdown 렌더링 (sanitize)
+  - [x] 인라인 편집 (제목/본문/참석자/태그) + 좌우 미리보기
+  - [x] 삭제 버튼
+- [x] **#6 Markdown 렌더링 라이브러리 도입** — PR `feat/phase-1-ui`
+  - [x] `marked` + `isomorphic-dompurify`
+  - [x] `src/lib/markdown.ts` 공용 유틸
+  - [x] 기존 커스텀 파서 교체, `.prose-minutes` 공통 스타일
+- [x] **#7 전역 검색** — PR `feat/phase-1-ui`
+  - [x] 검색 바 (debounce 300ms, URL query 동기화)
+  - [x] `/api/meetings?q=...` 부분 검색 (title/transcript/markdown)
+  - [ ] Postgres `tsvector` GIN 인덱스 — 현재 ILIKE로 개인용 규모 충분, 필요 시 후속
 
 ---
 
-## 🎯 Phase 2 — 구조화된 액션 아이템 (1주)
+## ✅ Phase 2 — 구조화된 액션 아이템 (완료)
 
-회의가 끝나면 **"내 할 일"이 자동으로 추출되어 체크리스트로 남음**. 노션 AI의 핵심 가치.
+회의가 끝나면 **"내 할 일"이 자동으로 추출되어 체크리스트로 남음**.
 
-### Issues
-- [ ] **#8 Gemini 프롬프트 개선 — JSON 출력**
-  - `generateGeminiMinutes`가 마크다운 대신 `{ summary, discussion, actionItems: [{ assignee, due, task }], decisions }` 반환
-  - JSON schema validation (zod)
-- [ ] **#9 ActionItem 테이블 + 관계**
-  - `Meeting` ↔ `ActionItem` (1:N)
-  - 필드: `id`, `meetingId`, `assignee`, `task`, `dueDate`, `isDone`, `createdAt`
-- [ ] **#10 체크리스트 UI**
-  - 회의 상세 페이지에 별도 섹션
-  - 체크박스 토글 → `PATCH /api/action-items/[id]`
-- [ ] **#11 대시보드 페이지** (`/`)
-  - "내 미완료 액션 아이템" 리스트
-  - 최근 회의 3건 미리보기
-  - 홈으로 승격, 녹음 UI는 `/record`로 이동
+### 구현됨
+- [x] **#8 액션 아이템 추출** — Gemini JSON 재구성 대신 마크다운 휴리스틱 채택
+  (모든 템플릿이 이미 `- [ ]` 출력 → 추가 호출 비용 0, 후속에 JSON 모드 가능)
+- [x] **#9 ActionItem 테이블** — `Meeting` ↔ `ActionItem` 1:N (cascade delete)
+  - 필드: `id`, `meetingId`, `task`, `isDone`, `position`, `createdAt`, `updatedAt`
+  - assignee/dueDate는 추후 JSON 출력 모드 도입 시 추가
+- [x] **#10 체크리스트 UI** — 상세 페이지 별도 섹션
+  - 체크박스 토글 (낙관적 업데이트) → `PATCH /api/action-items/[id]`
+  - 개별 삭제 (hover 시 ✕ 노출)
+  - 🔄 재추출 버튼 (마크다운 변경 후 수동 동기화)
+- [x] **#11 대시보드 위젯** — `/meetings` 상단에 "내 미완료 액션 (최근 5)"
+  - 회의 카드 우상단에 미완료 카운트 배지
+  - 홈 페이지 자체 승격은 보류 (현재 녹음 UI 유지)
+- [x] **부가** — Google Docs 호환 서식 복사 (`text/html` + `text/plain` ClipboardItem)
+  - MinutesViewer / MeetingDetail 둘 다 `📋 Docs용` 버튼
+
+### 비목표 (이번 단계)
+- Gemini JSON 출력 + zod 검증 — 정확도 부족 시 후속 도입
+- assignee/dueDate 필드 — JSON 출력 도입과 함께
+- 홈 페이지 대시보드 승격 — 녹음 흐름 보존이 우선
 
 ---
 
