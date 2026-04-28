@@ -6,6 +6,8 @@ import {
 import { resolveGeminiApiKey } from '@/lib/api-keys'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
+const MAX_TRANSCRIPT_CHARS = 100_000
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -24,6 +26,15 @@ export async function POST(request: NextRequest) {
       return Response.json(
         { error: '변환할 텍스트가 필요합니다.' },
         { status: 400 },
+      )
+    }
+
+    if (transcript.length > MAX_TRANSCRIPT_CHARS) {
+      return Response.json(
+        {
+          error: `텍스트가 너무 깁니다 (최대 ${MAX_TRANSCRIPT_CHARS.toLocaleString()}자).`,
+        },
+        { status: 413 },
       )
     }
 
