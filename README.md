@@ -15,6 +15,8 @@ docker compose up -d
 ```
 
 > ⚠️ **보안 주의**: 회의 내용에 민감 정보가 있다면 [SECURITY.md](SECURITY.md)의 위협 모델 섹션을 먼저 읽어주세요. 실시간 녹음은 Chrome Web Speech API를 사용하여 음성을 Google 서버로 전송합니다.
+>
+> 👥 **직원/팀원에게 공유할 때**: [docs/EMPLOYEE_QUICKSTART.md](docs/EMPLOYEE_QUICKSTART.md) — 5분 시작 가이드 (사내 정책 안내 포함)
 
 ---
 
