@@ -30,8 +30,27 @@ model Meeting {
 
   status MeetingStatus @default(COMPLETED)
 
+  actionItems ActionItem[]
+
   @@index([createdAt])
   @@map("meetings")
+}
+
+model ActionItem {
+  id        String   @id @default(cuid())
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  task      String
+  isDone    Boolean  @default(false)
+  position  Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([meetingId, position])
+  @@index([isDone])
+  @@map("action_items")
 }
 
 enum MeetingStatus {

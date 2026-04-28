@@ -10,7 +10,12 @@ interface PageProps {
 
 export default async function MeetingDetailPage({ params }: PageProps) {
   const { id } = await params
-  const meeting = await prisma.meeting.findUnique({ where: { id } })
+  const meeting = await prisma.meeting.findUnique({
+    where: { id },
+    include: {
+      actionItems: { orderBy: { position: 'asc' } },
+    },
+  })
 
   if (!meeting) {
     notFound()
@@ -30,6 +35,11 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         depth: meeting.depth,
         attendees: meeting.attendees,
         tags: meeting.tags,
+        actionItems: meeting.actionItems.map((a) => ({
+          id: a.id,
+          task: a.task,
+          isDone: a.isDone,
+        })),
       }}
     />
   )

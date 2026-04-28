@@ -10,7 +10,12 @@ interface RouteContext {
 export async function GET(_request: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params
-    const meeting = await prisma.meeting.findUnique({ where: { id } })
+    const meeting = await prisma.meeting.findUnique({
+      where: { id },
+      include: {
+        actionItems: { orderBy: { position: 'asc' } },
+      },
+    })
 
     if (!meeting) {
       return Response.json(

@@ -103,24 +103,30 @@
 
 ---
 
-## 🎯 Phase 2 — 구조화된 액션 아이템 (1주)
+## ✅ Phase 2 — 구조화된 액션 아이템 (완료)
 
-회의가 끝나면 **"내 할 일"이 자동으로 추출되어 체크리스트로 남음**. 노션 AI의 핵심 가치.
+회의가 끝나면 **"내 할 일"이 자동으로 추출되어 체크리스트로 남음**.
 
-### Issues
-- [ ] **#8 Gemini 프롬프트 개선 — JSON 출력**
-  - `generateGeminiMinutes`가 마크다운 대신 `{ summary, discussion, actionItems: [{ assignee, due, task }], decisions }` 반환
-  - JSON schema validation (zod)
-- [ ] **#9 ActionItem 테이블 + 관계**
-  - `Meeting` ↔ `ActionItem` (1:N)
-  - 필드: `id`, `meetingId`, `assignee`, `task`, `dueDate`, `isDone`, `createdAt`
-- [ ] **#10 체크리스트 UI**
-  - 회의 상세 페이지에 별도 섹션
-  - 체크박스 토글 → `PATCH /api/action-items/[id]`
-- [ ] **#11 대시보드 페이지** (`/`)
-  - "내 미완료 액션 아이템" 리스트
-  - 최근 회의 3건 미리보기
-  - 홈으로 승격, 녹음 UI는 `/record`로 이동
+### 구현됨
+- [x] **#8 액션 아이템 추출** — Gemini JSON 재구성 대신 마크다운 휴리스틱 채택
+  (모든 템플릿이 이미 `- [ ]` 출력 → 추가 호출 비용 0, 후속에 JSON 모드 가능)
+- [x] **#9 ActionItem 테이블** — `Meeting` ↔ `ActionItem` 1:N (cascade delete)
+  - 필드: `id`, `meetingId`, `task`, `isDone`, `position`, `createdAt`, `updatedAt`
+  - assignee/dueDate는 추후 JSON 출력 모드 도입 시 추가
+- [x] **#10 체크리스트 UI** — 상세 페이지 별도 섹션
+  - 체크박스 토글 (낙관적 업데이트) → `PATCH /api/action-items/[id]`
+  - 개별 삭제 (hover 시 ✕ 노출)
+  - 🔄 재추출 버튼 (마크다운 변경 후 수동 동기화)
+- [x] **#11 대시보드 위젯** — `/meetings` 상단에 "내 미완료 액션 (최근 5)"
+  - 회의 카드 우상단에 미완료 카운트 배지
+  - 홈 페이지 자체 승격은 보류 (현재 녹음 UI 유지)
+- [x] **부가** — Google Docs 호환 서식 복사 (`text/html` + `text/plain` ClipboardItem)
+  - MinutesViewer / MeetingDetail 둘 다 `📋 Docs용` 버튼
+
+### 비목표 (이번 단계)
+- Gemini JSON 출력 + zod 검증 — 정확도 부족 시 후속 도입
+- assignee/dueDate 필드 — JSON 출력 도입과 함께
+- 홈 페이지 대시보드 승격 — 녹음 흐름 보존이 우선
 
 ---
 

@@ -7,7 +7,10 @@ import {
   exportAsHtml,
   generateDownloadFilename,
 } from '@/lib/export-minutes'
-import { renderMarkdownToSafeHtml } from '@/lib/markdown'
+import {
+  copyMarkdownAsRichText,
+  renderMarkdownToSafeHtml,
+} from '@/lib/markdown'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 interface MinutesViewerProps {
@@ -41,6 +44,7 @@ export function MinutesViewer({
     'rendered',
   )
   const [save, setSave] = useState<SaveState>({ status: 'idle' })
+  const [copyHint, setCopyHint] = useState<string | null>(null)
 
   const renderedHtml = useMemo(
     () => renderMarkdownToSafeHtml(markdown),
@@ -72,9 +76,24 @@ export function MinutesViewer({
   async function copyToClipboard() {
     try {
       await navigator.clipboard.writeText(markdown)
+      flashCopyHint('마크다운이 클립보드에 복사되었습니다.')
     } catch {
-      // ignore
+      flashCopyHint('복사에 실패했습니다.')
     }
+  }
+
+  async function copyForGoogleDocs() {
+    const ok = await copyMarkdownAsRichText(markdown)
+    flashCopyHint(
+      ok
+        ? '서식 유지 복사 완료 — Google Docs/Word/Notion에 붙여넣어보세요.'
+        : '서식 복사 실패 — 일반 복사를 사용해주세요.',
+    )
+  }
+
+  function flashCopyHint(message: string) {
+    setCopyHint(message)
+    setTimeout(() => setCopyHint(null), 2500)
   }
 
   async function saveMeeting() {
@@ -150,20 +169,28 @@ export function MinutesViewer({
           <button
             onClick={copyToClipboard}
             className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 transition-colors"
+            title="마크다운 원문 복사"
           >
-            복사
+            📋 .md
+          </button>
+          <button
+            onClick={copyForGoogleDocs}
+            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+            title="서식 유지 복사 (Google Docs/Word/Notion 호환)"
+          >
+            📋 Docs용
           </button>
           <button
             onClick={() => download('md')}
             className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 transition-colors"
           >
-            .md
+            ⬇ .md
           </button>
           <button
             onClick={() => download('html')}
             className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 transition-colors"
           >
-            .html
+            ⬇ .html
           </button>
           <button
             onClick={saveMeeting}
@@ -188,6 +215,12 @@ export function MinutesViewer({
           >
             상세 보기 →
           </Link>
+        </div>
+      )}
+
+      {copyHint && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          {copyHint}
         </div>
       )}
 

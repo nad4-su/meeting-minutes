@@ -3,12 +3,19 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { renderMarkdownToSafeHtml } from '@/lib/markdown'
+import {
+  copyMarkdownAsRichText,
+  renderMarkdownToSafeHtml,
+} from '@/lib/markdown'
 import {
   exportAsMarkdown,
   exportAsHtml,
   generateDownloadFilename,
 } from '@/lib/export-minutes'
+import {
+  ActionItemList,
+  type ActionItemView,
+} from './ActionItemList'
 
 export interface MeetingDetailData {
   id: string
@@ -22,6 +29,7 @@ export interface MeetingDetailData {
   depth: string | null
   attendees: string[]
   tags: string[]
+  actionItems: ActionItemView[]
 }
 
 interface MeetingDetailProps {
@@ -42,6 +50,30 @@ export function MeetingDetail({ meeting }: MeetingDetailProps) {
   const [attendees, setAttendees] = useState(meeting.attendees.join(', '))
   const [tags, setTags] = useState(meeting.tags.join(', '))
   const [state, setState] = useState<EditState>({ status: 'view' })
+  const [copyHint, setCopyHint] = useState<string | null>(null)
+
+  function flashCopyHint(message: string) {
+    setCopyHint(message)
+    setTimeout(() => setCopyHint(null), 2500)
+  }
+
+  async function copyMd() {
+    try {
+      await navigator.clipboard.writeText(markdown)
+      flashCopyHint('마크다운이 복사되었습니다.')
+    } catch {
+      flashCopyHint('복사 실패')
+    }
+  }
+
+  async function copyDocs() {
+    const ok = await copyMarkdownAsRichText(markdown)
+    flashCopyHint(
+      ok
+        ? '서식 유지 복사 완료 — Google Docs에 붙여넣어보세요.'
+        : '서식 복사 실패 — 일반 복사를 사용해주세요.',
+    )
+  }
 
   const renderedHtml = useMemo(
     () => renderMarkdownToSafeHtml(markdown),
@@ -135,18 +167,32 @@ export function MeetingDetail({ meeting }: MeetingDetailProps) {
           >
             ← 목록으로
           </Link>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={copyMd}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 transition-colors"
+              title="마크다운 원문 복사"
+            >
+              📋 .md
+            </button>
+            <button
+              onClick={copyDocs}
+              className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+              title="서식 유지 복사 (Google Docs/Word/Notion 호환)"
+            >
+              📋 Docs용
+            </button>
             <button
               onClick={() => handleDownload('md')}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 transition-colors"
             >
-              .md
+              ⬇ .md
             </button>
             <button
               onClick={() => handleDownload('html')}
               className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-50 transition-colors"
             >
-              .html
+              ⬇ .html
             </button>
             {!isEditing ? (
               <button
@@ -190,6 +236,12 @@ export function MeetingDetail({ meeting }: MeetingDetailProps) {
         {state.status === 'error' && (
           <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
             {state.message}
+          </div>
+        )}
+
+        {copyHint && (
+          <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+            {copyHint}
           </div>
         )}
 
@@ -312,6 +364,15 @@ export function MeetingDetail({ meeting }: MeetingDetailProps) {
             <div
               className="prose-minutes text-sm text-neutral-800 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: renderedHtml }}
+            />
+          </div>
+        )}
+
+        {!isEditing && (
+          <div className="mt-6">
+            <ActionItemList
+              meetingId={meeting.id}
+              items={meeting.actionItems}
             />
           </div>
         )}

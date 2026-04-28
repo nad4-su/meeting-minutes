@@ -9,6 +9,7 @@ export interface MeetingCardData {
   tags?: string[]
   attendees?: string[]
   preview?: string
+  pendingActionItems?: number
 }
 
 const TEMPLATE_LABELS: Record<string, { icon: string; name: string }> = {
@@ -53,9 +54,14 @@ export function MeetingCard({ meeting }: { meeting: MeetingCardData }) {
         )}
       </div>
 
-      <p className="text-xs text-neutral-500 mb-3">
-        {formatDate(meeting.createdAt)}
-      </p>
+      <div className="text-xs text-neutral-500 mb-3 flex items-center gap-2">
+        <span>{formatDate(meeting.createdAt)}</span>
+        {(meeting.pendingActionItems ?? 0) > 0 && (
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 border border-amber-200">
+            ✅ {meeting.pendingActionItems} 미완료
+          </span>
+        )}
+      </div>
 
       {meeting.preview && (
         <p className="text-sm text-neutral-600 line-clamp-3 mb-3">

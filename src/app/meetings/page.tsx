@@ -46,6 +46,9 @@ export default async function MeetingsPage({ searchParams }: PageProps) {
         tags: true,
         attendees: true,
         markdownMinutes: true,
+        _count: {
+          select: { actionItems: { where: { isDone: false } } },
+        },
       },
     }),
     prisma.meeting.count({ where }),
@@ -62,7 +65,19 @@ export default async function MeetingsPage({ searchParams }: PageProps) {
     preview: m.markdownMinutes
       ? markdownToPlainText(m.markdownMinutes, 140)
       : undefined,
+    pendingActionItems: m._count.actionItems,
   }))
+
+  const pendingActions = q
+    ? []
+    : await prisma.actionItem.findMany({
+        where: { isDone: false },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: {
+          meeting: { select: { id: true, title: true } },
+        },
+      })
 
   return (
     <main className="flex-1 bg-gradient-to-b from-neutral-50 to-white">
@@ -93,6 +108,33 @@ export default async function MeetingsPage({ searchParams }: PageProps) {
         <section className="mb-6">
           <MeetingSearchBar />
         </section>
+
+        {pendingActions.length > 0 && (
+          <section className="mb-8 rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+                ✅ 내 미완료 액션 (최근 5건)
+              </h2>
+              <span className="text-xs text-amber-700">
+                회의별 카드의 배지에서 전체 확인
+              </span>
+            </div>
+            <ul className="space-y-1.5">
+              {pendingActions.map((a) => (
+                <li key={a.id} className="flex items-baseline gap-2 text-sm">
+                  <span className="text-amber-700">▸</span>
+                  <span className="text-neutral-800">{a.task}</span>
+                  <Link
+                    href={`/meetings/${a.meeting.id}`}
+                    className="ml-auto text-xs text-neutral-500 hover:text-amber-700 transition-colors shrink-0"
+                  >
+                    {a.meeting.title} →
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {cards.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-16 text-center">

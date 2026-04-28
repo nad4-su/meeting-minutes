@@ -6,7 +6,7 @@
 
 ---
 
-## 현재 기능 (Phase 0 + 0.5 + 1 + 1.5)
+## 현재 기능 (Phase 0 + 0.5 + 1 + 1.5 + 2)
 
 ### 녹음 & 전사
 - 브라우저 실시간 음성 인식 (Web Speech API · Chrome `ko-KR`)
@@ -39,6 +39,14 @@
 - **간결** — 각 섹션 3줄 이내
 - **표준** — 맥락이 이해될 정도
 - **상세** — 세부사항·수치 누락 없이 보존
+
+### 액션 아이템 (Phase 2)
+- 회의록 저장 시 마크다운의 `- [ ]` 항목을 자동으로 추출 → DB에 구조화 저장
+- 상세 페이지에 **체크리스트 섹션** — 체크박스 토글로 완료 표시
+- 개별 항목 삭제, 마크다운 편집 후 **🔄 재추출** 버튼으로 동기화
+- `/meetings` 상단에 "내 미완료 액션 (최근 5)" 위젯
+- 회의 카드에 미완료 카운트 배지 (예: `✅ 3 미완료`)
+- **Google Docs 호환 복사** — `📋 Docs용` 버튼으로 서식 유지 (heading/list/bold/code) 채로 클립보드에 복사 → Docs/Word/Notion에 그대로 붙여넣기
 
 ### Gemini 키 웹 설정 (Phase 1.5)
 - **`/settings` 페이지** — 헤더 ⚙️ 링크로 진입
@@ -76,7 +84,7 @@
 | AI 요약 | Gemini 2.5 Flash Lite — 무료 등급 15 RPM / 1000 RPD |
 | DB | PostgreSQL 16 + Prisma 7 (driver adapter `@prisma/adapter-pg`) |
 | Markdown | `marked` + `isomorphic-dompurify` |
-| 테스트 | Vitest (94 tests, jsdom) |
+| 테스트 | Vitest (102 tests, jsdom) |
 | 배포 | Docker Compose (app + db + test profile) |
 
 ---
@@ -164,8 +172,12 @@ src/
 │   │   ├── summarize/route.ts           # 최종 회의록 (Gemini + simple fallback)
 │   │   ├── summarize-live/route.ts      # 실시간 중간 요약
 │   │   ├── meetings/
-│   │   │   ├── route.ts                 # GET 목록 (q 검색) / POST 저장
-│   │   │   └── [id]/route.ts            # GET / PUT / DELETE 상세
+│   │   │   ├── route.ts                          # GET 목록 (q 검색) / POST 저장
+│   │   │   └── [id]/
+│   │   │       ├── route.ts                      # GET / PUT / DELETE 상세
+│   │   │       └── reparse-action-items/route.ts # POST 마크다운 재파싱
+│   │   ├── action-items/
+│   │   │   └── [id]/route.ts            # PATCH 토글 / DELETE
 │   │   └── settings/
 │   │       ├── status/route.ts          # 환경변수 키 설정 여부
 │   │       └── test/route.ts            # 키 유효성 검증 (가벼운 Gemini 호출)
@@ -177,7 +189,8 @@ src/
 │   └── layout.tsx
 ├── lib/
 │   ├── db.ts                            # Prisma 싱글톤 (pg adapter)
-│   ├── markdown.ts                      # marked + DOMPurify 렌더 유틸
+│   ├── markdown.ts                      # marked + DOMPurify 렌더 + Docs용 서식 복사
+│   ├── action-items.ts                  # 마크다운 - [ ] 휴리스틱 파서
 │   ├── api-keys.ts                      # 서버: 요청 키 → env fallback 우선순위
 │   ├── api-key-storage.ts               # 클라이언트: LocalStorage 헬퍼 + 마스킹
 │   ├── audio-validation.ts
@@ -195,10 +208,11 @@ src/
 │   ├── recorder/LiveRecorder.tsx        # 좌우 분할 뷰
 │   ├── minutes/MinutesViewer.tsx        # 미리보기/원문 토글 + 저장
 │   └── meeting/
-│       ├── MeetingCard.tsx
+│       ├── MeetingCard.tsx              # 미완료 액션 카운트 배지 포함
 │       ├── MeetingSearchBar.tsx         # debounce + URL 동기화
-│       └── MeetingDetail.tsx            # 상세/편집 UI
-└── __tests__/                           # 94 tests
+│       ├── MeetingDetail.tsx            # 상세/편집 UI + Docs용 복사
+│       └── ActionItemList.tsx           # 체크박스 토글 + 재추출 + 삭제
+└── __tests__/                           # 102 tests
 
 docs/
 ├── ROADMAP.md                           # 개발 로드맵 (Phase 0~4)
@@ -221,7 +235,7 @@ prisma/
 | **0.5** | 템플릿 (6종) + 강도 조절 (3단계) + 커스텀 프롬프트 | ✅ 완료 |
 | **1** | 회의 저장/조회/검색 워크스페이스 | ✅ 완료 |
 | **1.5** | 웹에서 Gemini 키 설정 (LocalStorage) | ✅ 완료 |
-| **2** | 구조화된 액션 아이템 (Gemini JSON + 체크리스트) | 📋 기획됨 |
+| **2** | 액션 아이템 추출/체크리스트 + Google Docs 복사 | ✅ 완료 |
 | **3** | 참석자 + 태그 시스템 | 📋 기획됨 |
 | **4** | 차별화 기능 (캘린더, AI Q&A, 블록 에디터) | 💡 선택 |
 
