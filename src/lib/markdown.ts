@@ -11,6 +11,8 @@ export function renderMarkdownToSafeHtml(markdown: string): string {
   const rawHtml = marked.parse(markdown) as string
   return DOMPurify.sanitize(rawHtml, {
     USE_PROFILES: { html: true },
+    FORBID_TAGS: ['style'],
+    FORBID_ATTR: ['style'],
   })
 }
 

@@ -3,15 +3,17 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-meetinguser}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meetingpass}
-      POSTGRES_DB: ${POSTGRES_DB:-meetingminutes}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be set in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # 호스트 포트 노출 안 함 — app 컨테이너만 내부 네트워크로 접근.
+    # 외부 DB 클라이언트(예: psql)가 필요하면 아래 주석 해제 (LAN 노출은 위험):
+    # ports:
+    #   - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-meetinguser}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -21,7 +23,7 @@ services:
     image: node:22-alpine
     working_dir: /app
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-meetinguser}:${POSTGRES_PASSWORD:-meetingpass}@db:5432/${POSTGRES_DB:-meetingminutes}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@db:5432/${POSTGRES_DB:?required}
     volumes:
       - .:/app
       - migrate_node_modules:/app/node_modules
@@ -36,9 +38,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # 127.0.0.1 바인딩 — 같은 머신에서만 접근 가능 (LAN 노출 방지)
+      - "127.0.0.1:3000:3000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-meetinguser}:${POSTGRES_PASSWORD:-meetingpass}@db:5432/${POSTGRES_DB:-meetingminutes}
+      DATABASE_URL: postgresql://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@db:5432/${POSTGRES_DB:?required}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     volumes:
       - uploads:/app/uploads

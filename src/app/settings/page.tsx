@@ -259,6 +259,12 @@ export default function SettingsPage() {
             <li>다른 브라우저/기기에서는 다시 입력해야 합니다.</li>
             <li>시크릿 모드 종료, 캐시 삭제 시 사라집니다.</li>
             <li>HTTPS 환경에서 사용하는 것을 권장합니다 (현재 localhost는 예외).</li>
+            <li className="text-amber-700">
+              ⚠️ <strong>공유 PC에서는 사용 후 반드시 🗑️ 삭제 버튼을 눌러주세요.</strong> 로그인 상태로 자리를 비우면 다른 사용자가 개발자 도구로 LocalStorage를 직접 열어 키를 추출할 수 있습니다.
+            </li>
+            <li className="text-amber-700">
+              ⚠️ <strong>회의 내용에 민감 정보가 포함된 경우</strong>, 실시간 녹음 기능은 음성을 Google 서버로 전송합니다 (Chrome Web Speech API 동작). 사내 컴플라이언스 정책 확인 후 사용해주세요.
+            </li>
           </ul>
         </section>
       </div>
