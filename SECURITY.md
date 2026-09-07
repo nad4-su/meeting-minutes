@@ -48,9 +48,9 @@
 
 | 데이터 | 저장 위치 | 외부 송출 |
 |---|---|---|
-| 회의 transcript / 회의록 | PostgreSQL (`meetings.markdownMinutes`, `rawTranscript`) | Gemini AI 요약 활성화 시 transcript가 Google로 전송 |
+| 회의 transcript / 회의록 | PostgreSQL (`meetings.markdownMinutes`, `rawTranscript`) | AI 요약 활성화 시 transcript가 **선택한 프로바이더**로 전송 |
 | 액션 아이템 | PostgreSQL (`action_items`) | 외부 송출 없음 |
-| Gemini API 키 | 브라우저 LocalStorage 또는 `.env` | 요청 시 Google에만 전송 |
+| API 키 | 브라우저 LocalStorage 또는 `.env` | 요청 시 선택한 프로바이더에만 전송 |
 | 음성 데이터 | 메모리 (실시간), `/app/uploads` (파일 업로드) | **Chrome Web Speech API → Google 서버** ⚠️ |
 
 ### ⚠️ 주의: Web Speech API의 음성 외부 전송
@@ -62,6 +62,30 @@ Chrome의 `SpeechRecognition` API는 **음성 데이터를 Google 서버로 전�
 - GDPR / HIPAA 등 규제 환경
 
 이 경우 **파일 업로드 탭**도 같은 한계가 있으므로(현재 업로드 후 전사는 미구현, Phase 4에서 자체 STT 검토 예정), 이 도구의 사용을 보류하는 것을 권장합니다.
+
+### ⚠️ 주의: AI 프로바이더 선택에 따른 전송 경로
+
+`/settings`에서 고른 프로바이더에 따라 **회의 전문이 지나가는 회사가 달라집니다.**
+
+| 선택 | transcript를 보게 되는 주체 |
+|---|---|
+| Google Gemini (기본) | Google |
+| OpenAI | OpenAI |
+| OrcaRouter 등 중계 라우터 | **라우터 운영사 + 라우터가 고른 실제 모델 제공사** (2단계) |
+| 로컬 모델 (Ollama / LM Studio / vLLM) | **없음** — 요청이 내 머신 밖으로 나가지 않음 |
+
+- 중계 라우터는 요청을 대신 전달하는 구조상 **평문 프롬프트를 볼 수 있는 주체가 한 곳 늘어납니다.** 로깅·보관 정책은 각 서비스 약관을 직접 확인하세요.
+- 사내 컴플라이언스가 외부 전송을 제한한다면 **로컬 모델** 프리셋을 사용하세요.
+
+### base URL은 서버가 대신 호출합니다 (SSRF 주의)
+
+OpenAI 호환 프리셋의 base URL은 브라우저가 아니라 **Next.js Route Handler(서버)** 가 fetch 합니다.
+
+- `http` / `https` 스킴만 허용합니다 (`normalizeBaseUrl`).
+- 그 외 호스트 제한은 없습니다. 이 앱은 `127.0.0.1` 단일 사용자 실행을 전제로 하므로 의도된 설계이지만,
+  **앱을 LAN이나 인터넷에 노출하면 요청자가 서버 내부망 주소를 base URL로 넣어 스캔할 수 있습니다.**
+- 노출 배포가 필요하다면 리버스 프록시에서 egress를 제한하거나, `LLM_BASE_URL`을 환경변수로 고정하고
+  요청 body의 `baseUrl`을 무시하도록 수정하세요.
 
 ---
 
@@ -91,9 +115,10 @@ Chrome의 `SpeechRecognition` API는 **음성 데이터를 Google 서버로 전�
 
 ### API 키 보호
 - `/api/settings/status`: 키 존재 여부만 응답 (값 노출 X)
-- `/api/settings/test`: 401/403/429 분류, detail 200자로 제한
-- `getStoredApiKey` GET 요청에 절대 포함 안 함 (body 전송만)
+- `/api/settings/test`: 401/403/429 분류, 업스트림 응답 본문을 그대로 돌려주지 않음
+- 키는 GET 요청에 절대 포함 안 함 (body 전송만)
 - `maskApiKey()`: UI에 표시 시 `AIza••••XYZ12` 형태로 마스킹
+- Gemini는 `x-goog-api-key` 헤더, OpenAI 호환은 `Authorization: Bearer` 헤더 — **키를 URL에 넣지 않음** (로그/리퍼러 유출 방지)
 
 ---
 

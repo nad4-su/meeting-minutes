@@ -4,6 +4,10 @@ import {
   setStoredApiKey,
   clearStoredApiKey,
   maskApiKey,
+  getStoredProviderConfig,
+  setStoredProviderConfig,
+  clearStoredProviderConfig,
+  getProviderRequestPayload,
 } from '@/lib/api-key-storage'
 
 describe('LocalStorage api key helpers', () => {
@@ -46,5 +50,101 @@ describe('maskApiKey', () => {
 
   it('정확히 9자는 마스킹 적용', () => {
     expect(maskApiKey('123456789')).toBe('1234••••6789')
+  })
+})
+
+describe('프로바이더 설정 저장', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('저장 후 동일한 설정을 돌려준다', () => {
+    setStoredProviderConfig({
+      presetId: 'orcarouter',
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.orcarouter.ai/v1',
+      model: 'google/gemini-2.5-flash-lite',
+    })
+
+    expect(getStoredProviderConfig()).toEqual({
+      presetId: 'orcarouter',
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.orcarouter.ai/v1',
+      model: 'google/gemini-2.5-flash-lite',
+    })
+  })
+
+  it('미설정이거나 깨진 값이면 null', () => {
+    expect(getStoredProviderConfig()).toBeNull()
+    window.localStorage.setItem('meeting-minutes:llm-provider', '{not json')
+    expect(getStoredProviderConfig()).toBeNull()
+  })
+
+  it('clear 시 삭제된다', () => {
+    setStoredProviderConfig({
+      presetId: 'openai',
+      apiKey: 'sk',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o-mini',
+    })
+    clearStoredProviderConfig()
+    expect(getStoredProviderConfig()).toBeNull()
+  })
+})
+
+describe('getProviderRequestPayload', () => {
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('프로바이더 설정이 없으면 기존 Gemini 키를 그대로 사용한다', () => {
+    setStoredApiKey('AIza-legacy')
+
+    expect(getProviderRequestPayload()).toEqual({
+      provider: 'gemini',
+      apiKey: 'AIza-legacy',
+      baseUrl: '',
+      model: '',
+    })
+  })
+
+  it('아무것도 없으면 빈 gemini 설정을 돌려준다', () => {
+    expect(getProviderRequestPayload()).toEqual({
+      provider: 'gemini',
+      apiKey: '',
+      baseUrl: '',
+      model: '',
+    })
+  })
+
+  it('프리셋 id로부터 provider를 결정한다', () => {
+    setStoredProviderConfig({
+      presetId: 'local',
+      apiKey: '',
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'llama3.1',
+    })
+
+    expect(getProviderRequestPayload()).toEqual({
+      provider: 'openai-compatible',
+      apiKey: '',
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'llama3.1',
+    })
+  })
+
+  it('gemini 프리셋에서 키를 비워두면 기존 키로 폴백한다', () => {
+    setStoredApiKey('AIza-legacy')
+    setStoredProviderConfig({
+      presetId: 'gemini',
+      apiKey: '',
+      baseUrl: '',
+      model: 'gemini-2.5-pro',
+    })
+
+    const payload = getProviderRequestPayload()
+    expect(payload.provider).toBe('gemini')
+    expect(payload.apiKey).toBe('AIza-legacy')
+    expect(payload.model).toBe('gemini-2.5-pro')
   })
 })

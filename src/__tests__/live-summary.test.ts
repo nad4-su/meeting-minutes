@@ -128,3 +128,30 @@ describe('generateLiveSummary', () => {
     expect(init.headers['x-goog-api-key']).toBe('secret-key')
   })
 })
+
+describe('generateLiveSummary — openai-compatible', () => {
+  it('OpenAI 호환 엔드포인트로 중간 요약을 만든다', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: '## 요약\n진행 중' } }],
+        }),
+    })
+
+    const result = await generateLiveSummary('회의 내용', {
+      provider: {
+        provider: 'openai-compatible',
+        apiKey: 'sk-test',
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'llama3.1',
+      },
+      fetchFn: mockFetch,
+    })
+
+    expect(result.success).toBe(true)
+    expect(mockFetch.mock.calls[0][0]).toBe(
+      'http://localhost:11434/v1/chat/completions',
+    )
+  })
+})

@@ -1,4 +1,10 @@
 import {
+  complete,
+  describeModel,
+  toProviderSettings,
+  type ProviderSettings,
+} from './providers'
+import {
   buildPrompt,
   resolveDepth,
   type SummaryDepth,
@@ -14,12 +20,14 @@ export interface MinutesInput {
   customPrompt?: string
 }
 
-type GeminiResult =
+type AiMinutesResult =
   | { success: true; markdown: string }
-  | { success: false; error: string }
+  | { success: false; error: string; rateLimited?: boolean }
 
-interface GeminiOptions {
-  apiKey: string
+interface AiMinutesOptions {
+  /** 프로바이더 설정. 생략하면 apiKey로 Gemini를 호출한다. */
+  provider?: ProviderSettings
+  apiKey?: string
   fetchFn?: typeof fetch
 }
 
@@ -49,15 +57,12 @@ ${content}
 `
 }
 
-export async function generateGeminiMinutes(
+export async function generateAiMinutes(
   input: MinutesInput,
-  options: GeminiOptions,
-): Promise<GeminiResult> {
-  const { apiKey, fetchFn = fetch } = options
-
-  if (!apiKey || apiKey.trim().length === 0) {
-    return { success: false, error: 'Gemini API 키가 필요합니다.' }
-  }
+  options: AiMinutesOptions,
+): Promise<AiMinutesResult> {
+  const { fetchFn } = options
+  const settings = toProviderSettings(options.provider, options.apiKey)
 
   const templateId = input.template ?? 'meeting'
   const depth = resolveDepth(templateId, input.depth)
@@ -69,34 +74,23 @@ export async function generateGeminiMinutes(
     customPrompt: input.customPrompt,
   })
 
-  const url =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
+  const result = await complete(prompt, settings, { fetchFn })
 
-  try {
-    const response = await fetchFn(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    })
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `Gemini API 호출 실패: ${response.status} ${response.statusText}`,
-      }
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error,
+      ...(result.rateLimited ? { rateLimited: true } : {}),
     }
+  }
 
-    const data = await response.json()
-    const generatedText =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  const generatedText = result.text.trim()
+  if (generatedText.length === 0) {
+    return { success: false, error: '요약 결과가 비어 있습니다.' }
+  }
 
-    const dateStr = formatDate(input.date)
-    const markdown = `# ${input.title}
+  const dateStr = formatDate(input.date)
+  const markdown = `# ${input.title}
 
 **날짜**: ${dateStr}
 
@@ -106,15 +100,13 @@ ${generatedText}
 
 ---
 
-*이 회의록은 Gemini AI를 활용하여 자동 생성되었습니다.*
+*이 회의록은 AI(${describeModel(settings)})를 활용하여 자동 생성되었습니다.*
 `
 
-    return { success: true, markdown }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '알 수 없는 오류'
-    return {
-      success: false,
-      error: `Gemini API 호출 중 오류 발생: ${message}`,
-    }
-  }
+  return { success: true, markdown }
 }
+
+/**
+ * @deprecated `generateAiMinutes`를 사용하세요. Gemini 전용 호출부 하위 호환용입니다.
+ */
+export const generateGeminiMinutes = generateAiMinutes

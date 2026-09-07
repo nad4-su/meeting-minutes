@@ -28,7 +28,7 @@ docker compose up -d
   - [⚡ 실시간 롤링 요약](#-실시간-롤링-요약)
   - [💾 회의록 저장/조회/검색](#-회의록-저장조회검색)
   - [✅ 액션 아이템 자동 추출](#-액션-아이템-자동-추출)
-  - [🔑 웹에서 API 키 설정](#-웹에서-api-키-설정)
+  - [🔑 AI 프로바이더 & API 키 설정](#-ai-프로바이더--api-키-설정)
   - [📋 Google Docs 호환 복사](#-google-docs-호환-복사)
 - [🚀 시작하기](#-시작하기)
   - [Docker Compose (권장)](#docker-compose-권장)
@@ -154,9 +154,22 @@ docker compose up -d
 
 ---
 
-### 🔑 웹에서 API 키 설정
+### 🔑 AI 프로바이더 & API 키 설정
 
-`.env`를 만지지 않고 `/settings` 페이지에서 Gemini 키를 입력·저장·검증할 수 있습니다.
+`.env`를 만지지 않고 `/settings` 페이지에서 프로바이더·모델·키를 선택하고 검증할 수 있습니다.
+
+**선택 가능한 프로바이더**
+
+| 프리셋 | 엔드포인트 | 비고 |
+|--------|-----------|------|
+| **Google Gemini** (기본) | Google 직접 호출 | 무료 티어가 있어 가장 간단 |
+| **OpenAI** | `https://api.openai.com/v1` | Chat Completions |
+| **OrcaRouter** | `https://api.orcarouter.ai/v1` | 하나의 키로 여러 제공사 모델 |
+| **로컬 모델** | `http://localhost:11434/v1` | Ollama · LM Studio · vLLM — 회의 내용이 외부로 나가지 않음 |
+| **직접 입력** | 사용자 지정 | OpenAI 호환이면 무엇이든 |
+
+Gemini 외 프리셋은 모두 동일한 **OpenAI Chat Completions** 어댑터를 사용합니다
+(`src/lib/providers/openai-compatible.ts`). base URL과 모델 ID만 바꾸면 새 서비스가 붙습니다.
 
 **저장 위치**
 - 브라우저 LocalStorage (서버 DB에 저장되지 않음)
@@ -164,9 +177,9 @@ docker compose up -d
 
 **우선순위**
 ```
-1. 요청 body의 apiKey  (브라우저 LocalStorage)
+1. 요청 body의 provider/apiKey/baseUrl/model  (브라우저 LocalStorage)
        ↓ 없으면
-2. process.env.GEMINI_API_KEY  (서버 환경변수 fallback)
+2. 서버 환경변수  (GEMINI_API_KEY 또는 LLM_PROVIDER / LLM_BASE_URL / LLM_MODEL / LLM_API_KEY)
        ↓ 없으면
 3. summarize → 단순 변환 폴백 (warning 표시)
    summarize-live → 503 + 안내
@@ -175,12 +188,14 @@ docker compose up -d
 **기능**
 - 마스킹된 현재 키 표시 (`AIza••••XYZ12`)
 - 보이기/숨기기 토글
-- **🧪 테스트 호출** — 가벼운 Gemini 응답으로 즉시 키 검증
-- 현재 키 소스 배지 (`브라우저` / `환경변수` / `없음`)
+- **🧪 테스트 호출** — 가벼운 응답으로 즉시 설정 검증 (사용된 모델명 표시)
+- 현재 소스 배지 (`브라우저` / `환경변수` / `없음`)
+- 기존에 Gemini 키만 저장해둔 사용자는 **재입력 없이 그대로 동작** (자동 승계)
 
 **보안**
 - HTTPS 권장 (LocalStorage는 동일 출처 정책 의존)
 - GET 응답에 절대 풀 키 노출 안 함
+- base URL은 `http`/`https`만 허용 — 자세한 내용은 [SECURITY.md](SECURITY.md)
 
 ---
 
@@ -231,12 +246,13 @@ DATABASE_URL=postgresql://meetinguser:<위와_같은_비번>@localhost:5432/meet
 
 > ⚠️ `POSTGRES_PASSWORD`를 비워두면 docker compose가 명시적 에러로 실패합니다. 보안을 위한 의도된 동작.
 
-> 💡 **Gemini API 키는 두 가지 방법 중 선택**
+> 💡 **AI 프로바이더 설정은 두 가지 방법 중 선택**
 >
-> - **(A) 웹 UI** — 앱 기동 후 `/settings`에서 입력 (브라우저 LocalStorage, 추천)
-> - **(B) `.env` 환경변수** — `GEMINI_API_KEY=AIza...` 작성
+> - **(A) 웹 UI** — 앱 기동 후 `/settings`에서 프로바이더 선택 + 키 입력 (브라우저 LocalStorage, 추천)
+> - **(B) `.env` 환경변수** — `GEMINI_API_KEY=AIza...` 또는 `LLM_PROVIDER` / `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY`
 >
-> [Google AI Studio](https://aistudio.google.com/apikey)에서 무료로 발급. 키 없이도 "단순 변환" 모드는 동작.
+> 기본값인 Gemini 키는 [Google AI Studio](https://aistudio.google.com/apikey)에서 무료로 발급.
+> 설정이 없어도 "단순 변환" 모드는 동작.
 
 #### 3. DB 마이그레이션 (최초 1회)
 
@@ -304,11 +320,11 @@ npm run test:coverage     # 커버리지 리포트
 |------|------|
 | 프레임워크 | Next.js 16 (App Router) + React 19 + TypeScript |
 | STT (실시간) | Web Speech API — Chrome 내장, 무료 |
-| AI 요약 | Gemini 2.5 Flash Lite (무료 등급 15 RPM / 1000 RPD) |
+| AI 요약 | Gemini 2.5 Flash Lite (기본) · OpenAI 호환 엔드포인트 선택 가능 |
 | DB | PostgreSQL 16 + Prisma 7 (driver adapter `@prisma/adapter-pg`) |
 | Markdown | `marked` + `isomorphic-dompurify` |
 | 스타일 | Tailwind CSS v4 |
-| 테스트 | Vitest 4 (jsdom, 102 tests) |
+| 테스트 | Vitest 4 (jsdom, 141 tests) |
 | 배포 | Docker Compose + standalone Next.js 빌드 |
 
 ---
@@ -339,14 +355,20 @@ src/
 │   ├── page.tsx                                  # 메인 (녹음/요약)
 │   └── layout.tsx
 ├── lib/
+│   ├── providers/                                # AI 프로바이더 어댑터
+│   │   ├── index.ts                              #   complete() 디스패치
+│   │   ├── types.ts                              #   ProviderSettings / CompletionResult
+│   │   ├── presets.ts                            #   설정 UI용 프리셋 목록
+│   │   ├── gemini.ts                             #   Google Generative Language API
+│   │   └── openai-compatible.ts                  #   OpenAI Chat Completions 호환
 │   ├── db.ts                                     # Prisma 싱글톤 (pg adapter)
 │   ├── markdown.ts                               # marked + DOMPurify + Docs용 복사
 │   ├── action-items.ts                           # - [ ] 휴리스틱 파서
-│   ├── api-keys.ts                               # 서버: 요청 키 → env fallback
-│   ├── api-key-storage.ts                        # 클라: LocalStorage + 마스킹
+│   ├── api-keys.ts                               # 서버: 요청 설정 → env fallback
+│   ├── api-key-storage.ts                        # 클라: LocalStorage + 마스킹 + 프로바이더 설정
 │   ├── templates.ts                              # 템플릿 레지스트리 + 프롬프트 빌더
-│   ├── minutes-generator.ts                      # 최종 요약 생성
-│   ├── live-summary.ts                           # 롤링 요약 생성
+│   ├── minutes-generator.ts                      # 최종 요약 생성 (프로바이더 무관)
+│   ├── live-summary.ts                           # 롤링 요약 생성 (프로바이더 무관)
 │   ├── transcript-formatter.ts
 │   ├── audio-validation.ts
 │   ├── upload-handler.ts
@@ -409,7 +431,7 @@ prisma/
 - 같은 머신을 다른 사람과 공유하지 않는 것을 가정
 - 회의 transcript / 회의록은 평문으로 PostgreSQL에 저장됨 (디스크 암호화는 호스트 OS에 위임)
 
-### Gemini API 키
+### API 키
 - LocalStorage 저장 (브라우저 동일 출처 정책으로 보호)
 - 서버 DB에 저장되지 않음
 - 요청 시점에만 body로 전송, 일회성 사용
@@ -417,10 +439,14 @@ prisma/
 
 ### 외부 데이터 송출
 - **Web Speech API** — Chrome이 마이크 오디오를 Google 서버로 전송하여 전사 (Chrome 자체 동작, 우리 서버 경유 X)
-- **Gemini API** — 사용자가 명시적으로 활성화한 경우에만 transcript를 Google 서버로 전송
+- **AI 요약 API** — 사용자가 명시적으로 활성화한 경우에만 transcript를 선택한 프로바이더로 전송
+  - Gemini / OpenAI 직접 호출 → 해당 회사 서버 1곳
+  - OrcaRouter 등 중계 라우터 → **라우터 운영사 + 실제 모델 제공사** 양쪽
+  - 로컬 모델 (Ollama / LM Studio / vLLM) → **외부 전송 없음**
 - **그 외** — 외부 호출 없음 (텔레메트리 / 분석 도구 미설치)
 
-> ⚠️ **회사 회의 등 민감 정보가 외부 클라우드(Google)로 송출되는 점에 유의.** 사내 컴플라이언스 정책 확인 후 사용 권장.
+> ⚠️ **회사 회의 등 민감 정보가 외부 클라우드로 송출되는 점에 유의.** 사내 컴플라이언스 정책 확인 후 사용 권장.
+> 외부 전송이 곤란하다면 `/settings`에서 **로컬 모델**을 선택하세요.
 
 ### 권장 배포 방식
 
