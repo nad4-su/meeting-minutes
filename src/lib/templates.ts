@@ -197,11 +197,27 @@ const DEPTH_MODIFIERS: Record<SummaryDepth, string> = {
 
 const LIVE_MODIFIER = `회의가 아직 진행 중입니다. 지금까지의 내용을 기반으로 **중간 정리**를 작성하세요. 확정되지 않은 결정은 "(논의 중)"으로 표시하세요.`
 
+/**
+ * 증분 갱신 모드.
+ *
+ * 전사 전체를 매번 다시 보내는 대신 [지금까지의 요약] + [새로 추가된 발화]만 보낸다.
+ * 호출당 토큰이 회의 길이와 무관하게 일정해져, 비용이 제곱이 아닌 선형으로 늘어난다.
+ */
+const INCREMENTAL_MODIFIER = `아래에는 [지금까지의 요약]과 [새로 추가된 발화]가 주어집니다.
+기존 요약을 처음부터 다시 쓰지 말고 **갱신**하세요:
+- 기존 요약의 내용과 구조를 유지한 채 새 발화를 반영합니다.
+- 기존 항목이 새 발화로 확정되거나 번복되었다면 그 항목을 고치세요.
+- 새 발화에 언급되지 않았다는 이유로 기존 내용을 삭제하지 마세요.
+- 출력은 항상 갱신된 회의록 **전체**입니다. 변경분만 출력하지 마세요.`
+
 export interface BuildPromptArgs {
   templateId: TemplateId
   depth: SummaryDepth
+  /** 증분 모드에서는 [지금까지의 요약] + [새로 추가된 발화]를 담은 블록이 들어온다. */
   transcript: string
   live?: boolean
+  /** 직전 요약을 갱신하는 모드. live와 함께 쓴다. */
+  incremental?: boolean
   customPrompt?: string
 }
 
@@ -222,7 +238,14 @@ export function resolveDepth(
 }
 
 export function buildPrompt(args: BuildPromptArgs): string {
-  const { templateId, depth, transcript, live = false, customPrompt } = args
+  const {
+    templateId,
+    depth,
+    transcript,
+    live = false,
+    incremental = false,
+    customPrompt,
+  } = args
 
   let instruction: string
 
@@ -243,12 +266,19 @@ export function buildPrompt(args: BuildPromptArgs): string {
 
     if (live && template.liveSupported) {
       parts.push(LIVE_MODIFIER)
+
+      if (incremental) {
+        parts.push(INCREMENTAL_MODIFIER)
+      }
     }
 
     instruction = parts.join('\n\n')
   }
 
-  return `${instruction}\n\n---\n음성 인식 텍스트:\n${transcript}`
+  // 증분 모드의 transcript는 자체 라벨([지금까지의 요약] 등)을 이미 포함한다.
+  const body = incremental ? transcript : `음성 인식 텍스트:\n${transcript}`
+
+  return `${instruction}\n\n---\n${body}`
 }
 
 export function liveEnabledFor(templateId: TemplateId): boolean {
