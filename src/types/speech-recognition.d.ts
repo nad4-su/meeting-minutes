@@ -5,7 +5,11 @@ interface SpeechRecognition extends EventTarget {
   onresult: ((event: SpeechRecognitionEvent) => void) | null
   onend: (() => void) | null
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
-  start(): void
+  /**
+   * audioTrack을 넘기면 기본 마이크 대신 그 트랙을 전사한다 (Chrome 한정).
+   * 트랙별로 인식기를 붙이면 화자가 트랙 번호로 확정된다.
+   */
+  start(audioTrack?: MediaStreamTrack): void
   stop(): void
   abort(): void
 }
