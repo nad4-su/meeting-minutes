@@ -164,3 +164,119 @@ describe('liveEnabledFor / depthAdjustableFor', () => {
     expect(depthAdjustableFor('custom')).toBe(false)
   })
 })
+
+describe('내용 기반 섹션 구조', () => {
+  const transcript = '이번에는 가격 비교 사이트를 만들어 봅시다'
+
+  it('meeting은 섹션 제목을 직접 짓도록 지시한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'meeting',
+      depth: 'standard',
+      transcript,
+    })
+    expect(prompt).toContain('섹션 제목을 직접 지어서')
+    // 고정 제목을 쓰지 말라는 지시가 함께 있어야 한다
+    expect(prompt).toContain('일반적인 제목은 쓰지 마세요')
+  })
+
+  it('one_on_one도 주제별 제목을 직접 짓도록 지시한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'one_on_one',
+      depth: 'standard',
+      transcript,
+    })
+    expect(prompt).toContain('제목을 직접 지어')
+  })
+
+  it('raw는 구조적 제목을 덧붙이지 말라는 지시를 유지한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'raw',
+      depth: 'detailed',
+      transcript,
+    })
+    expect(prompt).toContain('구조적 제목(## 섹션)을 덧붙이지 마세요')
+  })
+})
+
+describe('액션 아이템 담당자 표기', () => {
+  const transcript = '다음 주까지 정리해 주세요'
+
+  it('담당자 표기를 요구한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'meeting',
+      depth: 'standard',
+      transcript,
+    })
+    expect(prompt).toContain('(담당자)')
+  })
+
+  it('담당자가 불분명해도 항목을 버리지 않도록 지시한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'meeting',
+      depth: 'standard',
+      transcript,
+    })
+    expect(prompt).toContain('담당자가 불분명해도')
+  })
+
+  it('체크박스 형식을 유지해 액션 아이템 파서와 호환된다', () => {
+    for (const id of ['meeting', 'one_on_one', 'brainstorm'] as const) {
+      const prompt = buildPrompt({ templateId: id, depth: 'standard', transcript })
+      expect(prompt).toContain('- [ ]')
+    }
+  })
+})
+
+describe('공통 규칙', () => {
+  const transcript = '테스트 발화'
+
+  it('프리셋 템플릿 전체에 공통 규칙이 붙는다', () => {
+    for (const id of Object.keys(TEMPLATES) as (keyof typeof TEMPLATES)[]) {
+      const prompt = buildPrompt({ templateId: id, depth: 'standard', transcript })
+      expect(prompt).toContain('지어내지 마세요')
+      expect(prompt).toContain('한국어로 작성하세요')
+    }
+  })
+
+  it('발화자 표기가 있으면 활용하도록 지시한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'meeting',
+      depth: 'standard',
+      transcript,
+    })
+    expect(prompt).toContain('발화자 표기가 있다면')
+  })
+
+  it('영어 기술 용어는 원문 표기를 유지하도록 지시한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'meeting',
+      depth: 'standard',
+      transcript,
+    })
+    expect(prompt).toContain('원문 표기를 유지하세요')
+  })
+
+  it('custom 프롬프트에는 공통 규칙을 덧붙이지 않는다', () => {
+    const prompt = buildPrompt({
+      templateId: 'custom',
+      depth: 'standard',
+      transcript,
+      customPrompt: '한 줄로만 요약해줘',
+    })
+    expect(prompt).toContain('한 줄로만 요약해줘')
+    expect(prompt).not.toContain('지어내지 마세요')
+  })
+
+  it('custom 프롬프트가 비어 있으면 meeting 템플릿 + 공통 규칙으로 대체한다', () => {
+    const prompt = buildPrompt({
+      templateId: 'custom',
+      depth: 'standard',
+      transcript,
+      customPrompt: '   ',
+    })
+    expect(prompt).toContain('회의록 작성 전문가')
+    expect(prompt).toContain('지어내지 마세요')
+    // 기존 동작 유지 — custom 경로에는 강도/라이브 모디파이어를 적용하지 않는다
+    expect(prompt).not.toContain('작성 강도')
+  })
+})
