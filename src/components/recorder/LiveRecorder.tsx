@@ -39,9 +39,13 @@ export function LiveRecorder({
 
   // 화자 분리를 켜면 트랙마다 인식기를 붙인다. 트랙이 곧 화자가 되므로
   // 추론 없이 화자가 갈린다.
+  // 두 트랙을 실제로 확보했을 때만 화자를 라벨링한다.
+  // 마이크만 잡힌 상태에서 라벨을 붙이면 상대 발언이 내 것으로 기록된다.
+  const isSeparating = capture.mode === 'dual-stream'
+
   const local = useSpeechRecognition({
     audioTrack: speakerSeparation ? capture.micTrack : null,
-    speaker: speakerSeparation ? LOCAL_SPEAKER : undefined,
+    speaker: isSeparating ? LOCAL_SPEAKER : undefined,
     timeOrigin: timeOriginRef.current || undefined,
   })
 
@@ -61,10 +65,10 @@ export function LiveRecorder({
 
   const chunks = useMemo(
     () =>
-      speakerSeparation
+      isSeparating
         ? mergeSpeakerChunks(local.chunks, remote.chunks)
         : local.chunks,
-    [speakerSeparation, local.chunks, remote.chunks],
+    [isSeparating, local.chunks, remote.chunks],
   )
 
   // 캡처가 끝나 트랙이 준비되면 그때 인식기를 시작한다.
@@ -251,6 +255,11 @@ export function LiveRecorder({
                 내 마이크와 상대 목소리를 별도 트랙으로 받아 구분합니다. 추론이 없어
                 정확합니다. 시작 시 <strong>화면 공유 대화상자에서 &ldquo;탭 오디오 공유&rdquo;를
                 반드시 켜주세요.</strong>
+              </span>
+              <span className="mt-1.5 block text-xs text-amber-700">
+                한 대의 노트북을 앞에 두고 마주 앉은 <strong>대면 회의에서는 동작하지
+                않습니다.</strong> 마이크 하나에 두 사람 목소리가 섞여 들어오기 때문입니다.
+                이 경우 화자 라벨 없이 녹음되며, 대면 화자 분리는 준비 중입니다.
               </span>
             </span>
           </label>
