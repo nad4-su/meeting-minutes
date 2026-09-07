@@ -1,3 +1,4 @@
+import { complete, toProviderSettings, type ProviderSettings } from './providers'
 import {
   buildPrompt,
   resolveDepth,
@@ -10,7 +11,9 @@ type LiveSummaryResult =
   | { success: false; error: string; rateLimited?: boolean }
 
 interface LiveSummaryOptions {
-  apiKey: string
+  /** 프로바이더 설정. 생략하면 apiKey로 Gemini를 호출한다. */
+  provider?: ProviderSettings
+  apiKey?: string
   template?: TemplateId
   depth?: SummaryDepth
   customPrompt?: string
@@ -21,11 +24,8 @@ export async function generateLiveSummary(
   transcript: string,
   options: LiveSummaryOptions,
 ): Promise<LiveSummaryResult> {
-  const { apiKey, fetchFn = fetch } = options
-
-  if (!apiKey || apiKey.trim().length === 0) {
-    return { success: false, error: 'Gemini API 키가 필요합니다.' }
-  }
+  const { fetchFn } = options
+  const settings = toProviderSettings(options.provider, options.apiKey)
 
   const trimmed = transcript.trim()
   if (trimmed.length === 0) {
@@ -42,46 +42,19 @@ export async function generateLiveSummary(
     customPrompt: options.customPrompt,
   })
 
-  const url =
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent'
+  const result = await complete(prompt, settings, { fetchFn })
 
-  try {
-    const response = await fetchFn(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-    })
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return {
-          success: false,
-          error: 'Gemini 요청 한도 초과. 잠시 후 자동 재시도됩니다.',
-          rateLimited: true,
-        }
-      }
-      return {
-        success: false,
-        error: `Gemini API 호출 실패: ${response.status}`,
-      }
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error,
+      ...(result.rateLimited ? { rateLimited: true } : {}),
     }
-
-    const data = await response.json()
-    const markdown: string =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-
-    if (markdown.trim().length === 0) {
-      return { success: false, error: '요약 결과가 비어 있습니다.' }
-    }
-
-    return { success: true, markdown }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : '알 수 없는 오류'
-    return { success: false, error: `실시간 요약 중 오류: ${message}` }
   }
+
+  if (result.text.trim().length === 0) {
+    return { success: false, error: '요약 결과가 비어 있습니다.' }
+  }
+
+  return { success: true, markdown: result.text }
 }

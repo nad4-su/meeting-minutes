@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server'
 import {
-  generateGeminiMinutes,
+  generateAiMinutes,
   generateSimpleMinutes,
 } from '@/lib/minutes-generator'
-import { resolveGeminiApiKey } from '@/lib/api-keys'
+import { resolveProviderSettings } from '@/lib/api-keys'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 const MAX_TRANSCRIPT_CHARS = 100_000
@@ -11,16 +11,7 @@ const MAX_TRANSCRIPT_CHARS = 100_000
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const {
-      title,
-      transcript,
-      mode,
-      date,
-      template,
-      depth,
-      customPrompt,
-      apiKey,
-    } = body
+    const { title, transcript, mode, date, template, depth, customPrompt } = body
 
     if (!transcript || typeof transcript !== 'string') {
       return Response.json(
@@ -48,26 +39,27 @@ export async function POST(request: NextRequest) {
         typeof customPrompt === 'string' ? customPrompt : undefined,
     }
 
-    if (mode === 'gemini') {
-      const resolvedKey = resolveGeminiApiKey(apiKey)
-      if (!resolvedKey) {
+    // 'gemini'는 DB에 저장된 기존 값과의 호환을 위해 유지되는 AI 모드 식별자다.
+    if (mode === 'gemini' || mode === 'ai') {
+      const settings = resolveProviderSettings(body)
+      if (!settings) {
         const fallback = generateSimpleMinutes(input)
         return Response.json({
           markdown: fallback,
           mode: 'simple',
           warning:
-            'Gemini API 키가 설정되지 않아 단순 변환으로 대체되었습니다. /settings에서 키를 설정하세요.',
+            'AI 프로바이더가 설정되지 않아 단순 변환으로 대체되었습니다. /settings에서 설정하세요.',
         })
       }
 
-      const result = await generateGeminiMinutes(input, { apiKey: resolvedKey })
+      const result = await generateAiMinutes(input, { provider: settings })
 
       if (!result.success) {
         const fallback = generateSimpleMinutes(input)
         return Response.json({
           markdown: fallback,
           mode: 'simple',
-          warning: `Gemini 요약에 실패하여 단순 변환으로 대체되었습니다: ${result.error}`,
+          warning: `AI 요약에 실패하여 단순 변환으로 대체되었습니다: ${result.error}`,
         })
       }
 

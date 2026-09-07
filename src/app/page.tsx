@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AudioUploader } from '@/components/upload/AudioUploader'
 import { LiveRecorder } from '@/components/recorder/LiveRecorder'
 import { MinutesViewer } from '@/components/minutes/MinutesViewer'
-import { getStoredApiKey } from '@/lib/api-key-storage'
+import { getProviderRequestPayload } from '@/lib/api-key-storage'
 import {
   TEMPLATES,
   DEFAULT_TEMPLATE_ID,
@@ -119,7 +119,7 @@ export default function HomePage() {
           template,
           depth,
           customPrompt: template === 'custom' ? customPrompt : undefined,
-          apiKey: getStoredApiKey(),
+          ...getProviderRequestPayload(),
         }),
       })
       const data = await res.json()
@@ -212,7 +212,7 @@ export default function HomePage() {
                     : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
                 }`}
               >
-                Gemini AI 요약
+                AI 요약
               </button>
             </div>
           </div>

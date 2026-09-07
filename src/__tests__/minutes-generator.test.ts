@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   generateSimpleMinutes,
+  generateAiMinutes,
   generateGeminiMinutes,
   type MinutesInput,
 } from '@/lib/minutes-generator'
@@ -103,5 +104,51 @@ describe('generateGeminiMinutes', () => {
     if (!result.success) {
       expect(result.error).toContain('API 키')
     }
+  })
+})
+
+describe('generateAiMinutes — openai-compatible', () => {
+  const settings = {
+    provider: 'openai-compatible' as const,
+    apiKey: 'sk-test',
+    baseUrl: 'https://api.orcarouter.ai/v1',
+    model: 'google/gemini-2.5-flash-lite',
+  }
+
+  it('OpenAI 호환 엔드포인트 응답으로 회의록을 만든다', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: '## 요약\n- 리팩토링 완료' } }],
+        }),
+    })
+
+    const result = await generateAiMinutes(sampleInput, {
+      provider: settings,
+      fetchFn: mockFetch,
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.markdown).toContain('# 주간 스프린트 회의')
+      expect(result.markdown).toContain('리팩토링 완료')
+      // 하단 문구는 실제 사용한 모델을 표기한다
+      expect(result.markdown).toContain('google/gemini-2.5-flash-lite')
+    }
+  })
+
+  it('응답이 비어 있으면 실패로 처리해 단순 변환 폴백을 유도한다', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ choices: [{ message: { content: '  ' } }] }),
+    })
+
+    const result = await generateAiMinutes(sampleInput, {
+      provider: settings,
+      fetchFn: mockFetch,
+    })
+
+    expect(result.success).toBe(false)
   })
 })

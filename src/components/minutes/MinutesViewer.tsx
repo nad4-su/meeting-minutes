@@ -126,7 +126,7 @@ export function MinutesViewer({
     }
   }
 
-  const modeLabel = mode === 'gemini' ? 'Gemini AI 요약' : '단순 변환'
+  const modeLabel = mode === 'gemini' ? 'AI 요약' : '단순 변환'
 
   return (
     <div className="space-y-4">

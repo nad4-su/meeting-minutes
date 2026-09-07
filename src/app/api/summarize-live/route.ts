@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { generateLiveSummary } from '@/lib/live-summary'
-import { resolveGeminiApiKey } from '@/lib/api-keys'
+import { resolveProviderSettings } from '@/lib/api-keys'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 const MAX_TRANSCRIPT_CHARS = 40_000
@@ -8,7 +8,7 @@ const MAX_TRANSCRIPT_CHARS = 40_000
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { transcript, template, depth, customPrompt, apiKey } = body
+    const { transcript, template, depth, customPrompt } = body
 
     if (!transcript || typeof transcript !== 'string') {
       return Response.json(
@@ -17,12 +17,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const resolvedKey = resolveGeminiApiKey(apiKey)
-    if (!resolvedKey) {
+    const settings = resolveProviderSettings(body)
+    if (!settings) {
       return Response.json(
         {
           error:
-            'Gemini API 키가 설정되지 않았습니다. /settings에서 키를 입력해주세요.',
+            'AI 프로바이더가 설정되지 않았습니다. /settings에서 키를 입력해주세요.',
         },
         { status: 503 },
       )
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         : transcript
 
     const result = await generateLiveSummary(truncated, {
-      apiKey: resolvedKey,
+      provider: settings,
       template: (template as TemplateId | undefined) ?? 'meeting',
       depth: depth as SummaryDepth | undefined,
       customPrompt:
