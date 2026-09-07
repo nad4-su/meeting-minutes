@@ -4,11 +4,12 @@ import { resolveProviderSettings } from '@/lib/api-keys'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 const MAX_TRANSCRIPT_CHARS = 40_000
+const MAX_PREVIOUS_SUMMARY_CHARS = 8_000
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { transcript, template, depth, customPrompt } = body
+    const { transcript, template, depth, customPrompt, previousSummary } = body
 
     if (!transcript || typeof transcript !== 'string') {
       return Response.json(
@@ -33,8 +34,15 @@ export async function POST(request: NextRequest) {
         ? transcript.slice(-MAX_TRANSCRIPT_CHARS)
         : transcript
 
+    // 증분 모드: 직전 요약 + 새 발화만 보내므로 호출당 토큰이 일정하다.
+    const previous =
+      typeof previousSummary === 'string'
+        ? previousSummary.slice(-MAX_PREVIOUS_SUMMARY_CHARS)
+        : undefined
+
     const result = await generateLiveSummary(truncated, {
       provider: settings,
+      previousSummary: previous,
       template: (template as TemplateId | undefined) ?? 'meeting',
       depth: depth as SummaryDepth | undefined,
       customPrompt:

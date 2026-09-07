@@ -5,12 +5,15 @@ import type { TranscriptChunk } from '@/lib/transcript-formatter'
 import { formatTranscriptChunks } from '@/lib/transcript-formatter'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 import { getProviderRequestPayload } from '@/lib/api-key-storage'
+import { planLiveSummaryRequest } from '@/lib/live-summary'
 
 interface UseLiveSummaryOptions {
   enabled: boolean
   pollIntervalMs?: number
   minWords?: number
   incrementWords?: number
+  /** 증분 요약을 이 횟수만큼 반복하면 전사 전체로 한 번 다시 요약한다. 0이면 끈다. */
+  fullRefreshEvery?: number
   template?: TemplateId
   depth?: SummaryDepth
   customPrompt?: string
@@ -41,6 +44,7 @@ export function useLiveSummary(
     pollIntervalMs = 30_000,
     minWords = 25,
     incrementWords = 40,
+    fullRefreshEvery = 20,
     template = 'meeting',
     depth,
     customPrompt,
@@ -63,6 +67,11 @@ export function useLiveSummary(
   const inFlightRef = useRef(false)
   const cooldownUntilRef = useRef<number | null>(null)
   const consecutiveFailuresRef = useRef(0)
+
+  // 증분 요약 상태 — 성공했을 때만 전진시켜서 실패해도 발화를 잃지 않는다.
+  const summaryRef = useRef('')
+  const lastSummarizedIndexRef = useRef(0)
+  const incrementsSinceFullRef = useRef(0)
 
   useEffect(() => {
     chunksRef.current = chunks
@@ -98,11 +107,30 @@ export function useLiveSummary(
         return
       }
 
-      const transcript = formatTranscriptChunks(chunksRef.current)
+      const allChunks = chunksRef.current
+      const transcript = formatTranscriptChunks(allChunks)
       const currentWordCount = countWords(transcript)
 
       if (currentWordCount < minWords) return
       if (currentWordCount - lastWordCountRef.current < incrementWords) return
+
+      const plan = planLiveSummaryRequest({
+        totalChunks: allChunks.length,
+        lastSummarizedIndex: lastSummarizedIndexRef.current,
+        incrementsSinceFull: incrementsSinceFullRef.current,
+        fullRefreshEvery,
+        hasPreviousSummary: summaryRef.current.trim().length > 0,
+      })
+
+      // 요청을 보내는 시점의 길이를 고정해 둔다. 응답을 기다리는 동안
+      // 새 청크가 쌓여도 그 부분은 다음 회차로 넘어간다.
+      const chunkCountAtSend = allChunks.length
+      const payloadTranscript =
+        plan.mode === 'full'
+          ? transcript
+          : formatTranscriptChunks(allChunks.slice(plan.startIndex))
+
+      if (payloadTranscript.trim().length === 0) return
 
       const controller = new AbortController()
       abortRef.current = controller
@@ -115,7 +143,9 @@ export function useLiveSummary(
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            transcript,
+            transcript: payloadTranscript,
+            previousSummary:
+              plan.mode === 'incremental' ? summaryRef.current : undefined,
             template: configRef.current.template,
             depth: configRef.current.depth,
             customPrompt: configRef.current.customPrompt,
@@ -142,8 +172,12 @@ export function useLiveSummary(
 
         const data = await res.json()
         setSummary(data.markdown)
+        summaryRef.current = data.markdown
         setLastUpdatedAt(Date.now())
         lastWordCountRef.current = currentWordCount
+        lastSummarizedIndexRef.current = chunkCountAtSend
+        incrementsSinceFullRef.current =
+          plan.mode === 'full' ? 0 : incrementsSinceFullRef.current + 1
         consecutiveFailuresRef.current = 0
         cooldownUntilRef.current = null
         setCooldownUntil(null)
@@ -164,7 +198,7 @@ export function useLiveSummary(
     return () => {
       clearInterval(interval)
     }
-  }, [enabled, pollIntervalMs, minWords, incrementWords])
+  }, [enabled, pollIntervalMs, minWords, incrementWords, fullRefreshEvery])
 
   useEffect(() => {
     return () => {

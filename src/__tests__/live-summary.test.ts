@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { generateLiveSummary } from '@/lib/live-summary'
+import {
+  generateLiveSummary,
+  planLiveSummaryRequest,
+} from '@/lib/live-summary'
 
 describe('generateLiveSummary', () => {
   it('Gemini API 응답을 받아 중간 요약 마크다운을 반환한다', async () => {
@@ -152,6 +155,134 @@ describe('generateLiveSummary — openai-compatible', () => {
     expect(result.success).toBe(true)
     expect(mockFetch.mock.calls[0][0]).toBe(
       'http://localhost:11434/v1/chat/completions',
+    )
+  })
+})
+
+describe('planLiveSummaryRequest', () => {
+  const base = {
+    totalChunks: 50,
+    lastSummarizedIndex: 30,
+    incrementsSinceFull: 3,
+    fullRefreshEvery: 20,
+    hasPreviousSummary: true,
+  }
+
+  it('평상시에는 직전 지점부터 증분으로 보낸다', () => {
+    expect(planLiveSummaryRequest(base)).toEqual({
+      mode: 'incremental',
+      startIndex: 30,
+    })
+  })
+
+  it('첫 호출은 전체를 보낸다', () => {
+    expect(
+      planLiveSummaryRequest({ ...base, lastSummarizedIndex: 0 }),
+    ).toEqual({ mode: 'full', startIndex: 0 })
+  })
+
+  it('갱신할 직전 요약이 없으면 전체를 보낸다', () => {
+    expect(
+      planLiveSummaryRequest({ ...base, hasPreviousSummary: false }),
+    ).toEqual({ mode: 'full', startIndex: 0 })
+  })
+
+  it('증분이 누적되면 전체 재요약으로 오차를 끊는다', () => {
+    expect(
+      planLiveSummaryRequest({ ...base, incrementsSinceFull: 20 }),
+    ).toEqual({ mode: 'full', startIndex: 0 })
+  })
+
+  it('fullRefreshEvery=0이면 전체 재요약을 하지 않는다', () => {
+    expect(
+      planLiveSummaryRequest({
+        ...base,
+        fullRefreshEvery: 0,
+        incrementsSinceFull: 999,
+      }).mode,
+    ).toBe('incremental')
+  })
+
+  it('전사가 초기화되어 인덱스가 범위를 벗어나면 전체를 보낸다', () => {
+    expect(
+      planLiveSummaryRequest({ ...base, totalChunks: 5 }),
+    ).toEqual({ mode: 'full', startIndex: 0 })
+  })
+})
+
+describe('generateLiveSummary — 증분 모드', () => {
+  function mockOk(text = '## 요약\n갱신됨') {
+    return vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          candidates: [{ content: { parts: [{ text }] } }],
+        }),
+    })
+  }
+
+  function sentPrompt(mockFetch: ReturnType<typeof vi.fn>): string {
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    return body.contents[0].parts[0].text
+  }
+
+  it('previousSummary가 있으면 요약과 신규 발화를 나눠 전달한다', async () => {
+    const mockFetch = mockOk()
+
+    await generateLiveSummary('새로 나온 이야기', {
+      apiKey: 'k',
+      previousSummary: '## 요약\n이전까지의 내용',
+      fetchFn: mockFetch,
+    })
+
+    const prompt = sentPrompt(mockFetch)
+    expect(prompt).toContain('[지금까지의 요약]')
+    expect(prompt).toContain('이전까지의 내용')
+    expect(prompt).toContain('[새로 추가된 발화]')
+    expect(prompt).toContain('새로 나온 이야기')
+    expect(prompt).toContain('갱신')
+  })
+
+  it('previousSummary가 없으면 기존 전체 요약 형식을 유지한다', async () => {
+    const mockFetch = mockOk()
+
+    await generateLiveSummary('전체 전사', { apiKey: 'k', fetchFn: mockFetch })
+
+    const prompt = sentPrompt(mockFetch)
+    expect(prompt).toContain('음성 인식 텍스트:')
+    expect(prompt).not.toContain('[지금까지의 요약]')
+  })
+
+  it('빈 문자열 previousSummary는 증분으로 취급하지 않는다', async () => {
+    const mockFetch = mockOk()
+
+    await generateLiveSummary('전체 전사', {
+      apiKey: 'k',
+      previousSummary: '   ',
+      fetchFn: mockFetch,
+    })
+
+    expect(sentPrompt(mockFetch)).not.toContain('[지금까지의 요약]')
+  })
+
+  it('긴 회의에서 증분 프롬프트가 전체 프롬프트보다 짧다', async () => {
+    const longTranscript = '회의 발화 한 줄입니다.\n'.repeat(500)
+
+    const fullFetch = mockOk()
+    await generateLiveSummary(longTranscript, {
+      apiKey: 'k',
+      fetchFn: fullFetch,
+    })
+
+    const incFetch = mockOk()
+    await generateLiveSummary('마지막 30초에 나온 이야기', {
+      apiKey: 'k',
+      previousSummary: '## 요약\n지금까지의 요약 본문',
+      fetchFn: incFetch,
+    })
+
+    expect(sentPrompt(incFetch).length).toBeLessThan(
+      sentPrompt(fullFetch).length / 5,
     )
   })
 })
