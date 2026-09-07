@@ -30,7 +30,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     apiKeyPlaceholder: 'AIzaSy...',
     docsUrl: 'https://aistudio.google.com/apikey',
     docsLabel: 'Google AI Studio',
-    modelHint: '예: gemini-2.5-flash-lite, gemini-2.5-pro',
+    modelHint:
+      '예: gemini-3.5-flash-lite(저렴·빠름), gemini-3.6-flash, gemini-2.5-pro',
   },
   {
     id: 'openai',
@@ -50,7 +51,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     label: 'OrcaRouter',
     provider: 'openai-compatible',
     baseUrl: 'https://api.orcarouter.ai/v1',
-    defaultModel: 'google/gemini-2.5-flash-lite',
+    defaultModel: 'google/gemini-3.5-flash-lite',
     description:
       '하나의 키로 여러 제공사 모델을 사용합니다. 별도 가입과 크레딧 충전(또는 BYOK 등록)이 필요합니다.',
     apiKeyLabel: 'OrcaRouter API 키',
@@ -58,7 +59,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     docsUrl: 'https://www.orcarouter.ai/',
     docsLabel: 'OrcaRouter',
     modelHint:
-      '예: google/gemini-2.5-flash-lite, openai/gpt-4o-mini, orcarouter/auto',
+      '예: google/gemini-3.5-flash-lite, openai/gpt-4o-mini, orcarouter/auto',
   },
   {
     id: 'local',

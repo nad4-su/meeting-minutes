@@ -101,7 +101,7 @@ docker compose up -d
 - 429 쿼터 초과 시 60초 자동 쿨다운, UI에 카운트다운 노출
 - 일반 실패 시 지수 백오프 (15s → 30s → 최대 120s)
 
-**비용 가드 (Gemini 2.5 Flash Lite 무료 등급 기준)**
+**비용 가드 (Gemini Flash Lite 무료 등급 기준)**
 - 15 RPM / 1000 RPD / 250K TPM
 - 30초 폴링 + 증분 게이트 → 1시간 회의 ≤ 60회 호출, 발화량 적으면 훨씬 적음
 - 개인 사용 시 일일 한도 도달 거의 불가
@@ -320,7 +320,7 @@ npm run test:coverage     # 커버리지 리포트
 |------|------|
 | 프레임워크 | Next.js 16 (App Router) + React 19 + TypeScript |
 | STT (실시간) | Web Speech API — Chrome 내장, 무료 |
-| AI 요약 | Gemini 2.5 Flash Lite (기본) · OpenAI 호환 엔드포인트 선택 가능 |
+| AI 요약 | Gemini 3.5 Flash Lite (기본) · OpenAI 호환 엔드포인트 선택 가능 |
 | DB | PostgreSQL 16 + Prisma 7 (driver adapter `@prisma/adapter-pg`) |
 | Markdown | `marked` + `isomorphic-dompurify` |
 | 스타일 | Tailwind CSS v4 |

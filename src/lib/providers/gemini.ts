@@ -4,7 +4,7 @@ import type {
   ProviderSettings,
 } from './types'
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite'
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite'
 
 const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta/models'
 
