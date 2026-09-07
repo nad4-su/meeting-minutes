@@ -3,6 +3,22 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import type { TranscriptChunk } from '@/lib/transcript-formatter'
 
+export interface UseSpeechRecognitionOptions {
+  /**
+   * 전사할 오디오 트랙. 지정하면 기본 마이크 대신 이 트랙을 인식한다.
+   * 트랙마다 인식기를 붙이면 화자가 트랙으로 확정된다.
+   */
+  audioTrack?: MediaStreamTrack | null
+  /** 이 인식기가 만든 청크에 붙일 화자 식별자. */
+  speaker?: string
+  /**
+   * 타임스탬프 기준 시각(ms). 여러 인식기를 병합하려면 같은 값을 넘겨야
+   * 한 시간축 위에 놓인다. 생략하면 startListening 호출 시각을 쓴다.
+   */
+  timeOrigin?: number
+  lang?: string
+}
+
 interface SpeechRecognitionHook {
   isListening: boolean
   isSupported: boolean | null
@@ -30,7 +46,10 @@ function describeError(code: string): string {
   }
 }
 
-export function useSpeechRecognition(): SpeechRecognitionHook {
+export function useSpeechRecognition(
+  options: UseSpeechRecognitionOptions = {},
+): SpeechRecognitionHook {
+  const { audioTrack, speaker, timeOrigin, lang = 'ko-KR' } = options
   const [isListening, setIsListening] = useState(false)
   const [chunks, setChunks] = useState<TranscriptChunk[]>([])
   const [interimText, setInterimText] = useState('')
@@ -39,6 +58,12 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const startTimeRef = useRef<number>(0)
   const networkRetryRef = useRef<number>(0)
+
+  // start()/onend 콜백이 항상 최신 값을 보도록 ref로 들고 있는다.
+  const configRef = useRef({ audioTrack, speaker, timeOrigin, lang })
+  useEffect(() => {
+    configRef.current = { audioTrack, speaker, timeOrigin, lang }
+  }, [audioTrack, speaker, timeOrigin, lang])
 
   const MAX_NETWORK_RETRIES = 8
 
@@ -59,12 +84,15 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
     const SpeechRecognitionAPI =
       window.SpeechRecognition || window.webkitSpeechRecognition
 
+    const { audioTrack: track, speaker: speakerId, timeOrigin: origin, lang: language } =
+      configRef.current
+
     const recognition = new SpeechRecognitionAPI()
-    recognition.lang = 'ko-KR'
+    recognition.lang = language
     recognition.continuous = true
     recognition.interimResults = true
 
-    startTimeRef.current = Date.now()
+    startTimeRef.current = origin ?? Date.now()
     networkRetryRef.current = 0
     setError(null)
 
@@ -88,6 +116,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
               startTime: Math.max(0, now - 2),
               endTime: now,
               isFinal: true,
+              ...(speakerId ? { speaker: speakerId } : {}),
             },
           ])
           setInterimText('')
@@ -103,8 +132,14 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
       const delay = networkRetryRef.current > 0 ? 1500 : 0
       setTimeout(() => {
         if (recognitionRef.current !== recognition) return
+        // 트랙이 끝났으면(화면 공유 중단 등) 재시작하지 않는다.
+        if (track && track.readyState !== 'live') {
+          setIsListening(false)
+          recognitionRef.current = null
+          return
+        }
         try {
-          recognition.start()
+          recognition.start(track ?? undefined)
         } catch {
           setIsListening(false)
           recognitionRef.current = null
@@ -141,7 +176,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
 
     recognitionRef.current = recognition
     try {
-      recognition.start()
+      recognition.start(track ?? undefined)
       setIsListening(true)
     } catch (err) {
       setError(
