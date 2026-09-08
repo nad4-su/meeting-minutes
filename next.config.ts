@@ -12,6 +12,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // sherpa-onnx-node는 네이티브 애드온이라 번들링하면 안 된다.
+  serverExternalPackages: ["sherpa-onnx-node"],
   async headers() {
     return [
       {
