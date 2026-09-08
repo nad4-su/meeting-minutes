@@ -89,3 +89,64 @@ export function mergeAdjacentChunks(
 
   return result
 }
+
+export interface TimeSpan {
+  start: number
+  end: number
+  speaker: number
+}
+
+function overlap(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+): number {
+  return Math.max(0, Math.min(aEnd, bEnd) - Math.max(aStart, bStart))
+}
+
+/**
+ * diarization 결과를 전사 청크에 붙인다.
+ *
+ * 청크마다 시간이 가장 많이 겹치는 화자 구간을 고른다. 겹치는 구간이 없으면
+ * 화자를 비워 둔다 — 틀린 화자를 붙이는 것보다 없는 편이 낫다.
+ *
+ * Web Speech API가 주는 청크 타임스탬프는 근사값이므로 이 매칭도 근사다.
+ */
+export function assignSpeakers(
+  chunks: readonly TranscriptChunk[],
+  segments: readonly TimeSpan[],
+  speakerId: (index: number) => string,
+): TranscriptChunk[] {
+  if (segments.length === 0) return chunks.map((chunk) => ({ ...chunk }))
+
+  return chunks.map((chunk) => {
+    let best: TimeSpan | null = null
+    let bestOverlap = 0
+
+    for (const segment of segments) {
+      const value = overlap(
+        chunk.startTime,
+        chunk.endTime,
+        segment.start,
+        segment.end,
+      )
+      if (value > bestOverlap) {
+        bestOverlap = value
+        best = segment
+      }
+    }
+
+    if (!best) {
+      // 겹치는 구간이 없으면 이전 라벨도 남기지 않는다.
+      return {
+        text: chunk.text,
+        startTime: chunk.startTime,
+        endTime: chunk.endTime,
+        isFinal: chunk.isFinal,
+      }
+    }
+
+    return { ...chunk, speaker: speakerId(best.speaker) }
+  })
+}

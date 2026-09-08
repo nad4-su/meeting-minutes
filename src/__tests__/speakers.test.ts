@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   LOCAL_SPEAKER,
   REMOTE_SPEAKER,
+  diarizedSpeakerId,
   listAttendees,
   resolveSpeakerName,
 } from '@/lib/speakers'
@@ -22,8 +23,17 @@ describe('resolveSpeakerName', () => {
     expect(resolveSpeakerName(LOCAL_SPEAKER, { [LOCAL_SPEAKER]: '   ' })).toBe('나')
   })
 
-  it('모르는 식별자는 그대로 돌려준다', () => {
-    expect(resolveSpeakerName('spk_3')).toBe('spk_3')
+  it('diarization 화자 번호를 한국어 표기로 바꾼다', () => {
+    expect(resolveSpeakerName('spk_1')).toBe('화자 1')
+    expect(resolveSpeakerName('spk_3')).toBe('화자 3')
+  })
+
+  it('diarization 화자에도 지정 이름이 우선한다', () => {
+    expect(resolveSpeakerName('spk_2', { spk_2: '박지연' })).toBe('박지연')
+  })
+
+  it('그 밖의 식별자는 그대로 돌려준다', () => {
+    expect(resolveSpeakerName('unknown')).toBe('unknown')
   })
 })
 
@@ -41,5 +51,12 @@ describe('listAttendees', () => {
         [REMOTE_SPEAKER]: '김지훈',
       }),
     ).toEqual(['배철승', '김지훈'])
+  })
+})
+
+describe('diarizedSpeakerId', () => {
+  it('0-based 번호를 1-based 식별자로 바꾼다', () => {
+    expect(diarizedSpeakerId(0)).toBe('spk_1')
+    expect(diarizedSpeakerId(3)).toBe('spk_4')
   })
 })

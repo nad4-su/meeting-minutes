@@ -9,6 +9,11 @@ export const REMOTE_SPEAKER = 'remote'
 
 export type SpeakerNames = Readonly<Record<string, string>>
 
+/** diarization이 매긴 화자 번호를 식별자로 바꾼다. 0-based → 1-based. */
+export function diarizedSpeakerId(index: number): string {
+  return `spk_${index + 1}`
+}
+
 const DEFAULT_NAMES: SpeakerNames = {
   [LOCAL_SPEAKER]: '나',
   [REMOTE_SPEAKER]: '상대',
@@ -24,6 +29,10 @@ export function resolveSpeakerName(
 
   const preset = DEFAULT_NAMES[speaker]
   if (preset) return preset
+
+  // spk_1 → "화자 1"
+  const diarized = /^spk_(\d+)$/.exec(speaker)
+  if (diarized) return `화자 ${diarized[1]}`
 
   return speaker
 }

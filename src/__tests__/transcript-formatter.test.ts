@@ -3,6 +3,7 @@ import {
   formatTranscriptChunks,
   mergeAdjacentChunks,
   mergeSpeakerChunks,
+  assignSpeakers,
   type TranscriptChunk,
 } from '@/lib/transcript-formatter'
 
@@ -134,5 +135,63 @@ describe('mergeAdjacentChunks — 화자 경계', () => {
     expect(merged).toHaveLength(1)
     expect(merged[0].text).toBe('그건 가능합니다')
     expect(merged[0].speaker).toBe('local')
+  })
+})
+
+describe('assignSpeakers', () => {
+  const id = (n: number) => `spk_${n + 1}`
+
+  const chunks: TranscriptChunk[] = [
+    { text: '안녕하세요', startTime: 0, endTime: 3, isFinal: true },
+    { text: '네 반갑습니다', startTime: 5, endTime: 8, isFinal: true },
+    { text: '그럼 시작하죠', startTime: 10, endTime: 12, isFinal: true },
+  ]
+
+  it('시간이 가장 많이 겹치는 화자를 붙인다', () => {
+    const out = assignSpeakers(
+      chunks,
+      [
+        { start: 0, end: 4, speaker: 0 },
+        { start: 4.5, end: 9, speaker: 1 },
+        { start: 9.5, end: 13, speaker: 0 },
+      ],
+      id,
+    )
+    expect(out.map((c) => c.speaker)).toEqual(['spk_1', 'spk_2', 'spk_1'])
+  })
+
+  it('겹치는 구간이 없으면 화자를 비워 둔다', () => {
+    const out = assignSpeakers(
+      chunks,
+      [{ start: 100, end: 110, speaker: 0 }],
+      id,
+    )
+    expect(out.every((c) => c.speaker === undefined)).toBe(true)
+  })
+
+  it('부분적으로만 겹치면 더 많이 겹치는 쪽을 고른다', () => {
+    const out = assignSpeakers(
+      [{ text: '경계에 걸침', startTime: 0, endTime: 10, isFinal: true }],
+      [
+        { start: 0, end: 3, speaker: 0 },
+        { start: 3, end: 10, speaker: 1 },
+      ],
+      id,
+    )
+    expect(out[0].speaker).toBe('spk_2')
+  })
+
+  it('segments가 비면 원본을 그대로 돌려준다', () => {
+    const out = assignSpeakers(chunks, [], id)
+    expect(out).toEqual(chunks)
+  })
+
+  it('기존 화자 라벨은 새 결과로 덮어쓴다', () => {
+    const out = assignSpeakers(
+      [{ text: 'x', startTime: 0, endTime: 2, isFinal: true, speaker: 'spk_9' }],
+      [{ start: 0, end: 2, speaker: 0 }],
+      id,
+    )
+    expect(out[0].speaker).toBe('spk_1')
   })
 })

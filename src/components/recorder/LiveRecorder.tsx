@@ -3,17 +3,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useDualStreamCapture } from '@/hooks/useDualStreamCapture'
+import { useDiarization } from '@/hooks/useDiarization'
 import { useLiveSummary } from '@/hooks/useLiveSummary'
 import {
+  assignSpeakers,
   formatTranscriptChunks,
   mergeSpeakerChunks,
+  type TimeSpan,
 } from '@/lib/transcript-formatter'
 import {
   LOCAL_SPEAKER,
   REMOTE_SPEAKER,
+  diarizedSpeakerId,
   resolveSpeakerName,
 } from '@/lib/speakers'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
+
+type SeparationMode = 'off' | 'remote' | 'in-person'
 
 interface LiveRecorderProps {
   onTranscriptReady: (transcript: string) => void
@@ -30,12 +36,17 @@ export function LiveRecorder({
   depth,
   customPrompt,
 }: LiveRecorderProps) {
-  const [speakerSeparation, setSpeakerSeparation] = useState(false)
+  const [mode, setMode] = useState<SeparationMode>('off')
+  const [attendeeCount, setAttendeeCount] = useState(2)
   const [pendingStart, setPendingStart] = useState(false)
   const [speakerNames, setSpeakerNames] = useState<Record<string, string>>({})
+  const [segments, setSegments] = useState<TimeSpan[] | null>(null)
   const timeOriginRef = useRef(0)
 
   const capture = useDualStreamCapture()
+  const diarization = useDiarization()
+
+  const speakerSeparation = mode !== 'off'
 
   // 화자 분리를 켜면 트랙마다 인식기를 붙인다. 트랙이 곧 화자가 되므로
   // 추론 없이 화자가 갈린다.
@@ -63,13 +74,11 @@ export function LiveRecorder({
     startListening,
   } = local
 
-  const chunks = useMemo(
-    () =>
-      isSeparating
-        ? mergeSpeakerChunks(local.chunks, remote.chunks)
-        : local.chunks,
-    [isSeparating, local.chunks, remote.chunks],
-  )
+  const chunks = useMemo(() => {
+    if (isSeparating) return mergeSpeakerChunks(local.chunks, remote.chunks)
+    if (segments) return assignSpeakers(local.chunks, segments, diarizedSpeakerId)
+    return local.chunks
+  }, [isSeparating, segments, local.chunks, remote.chunks])
 
   // 캡처가 끝나 트랙이 준비되면 그때 인식기를 시작한다.
   useEffect(() => {
@@ -79,8 +88,11 @@ export function LiveRecorder({
     setPendingStart(false)
     local.startListening()
     if (capture.systemTrack) remote.startListening()
+    if (mode === 'in-person' && capture.micTrack) {
+      diarization.start(capture.micTrack)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingStart, capture.mode, capture.systemTrack])
+  }, [pendingStart, capture.mode, capture.systemTrack, capture.micTrack])
 
   const {
     summary,
@@ -130,22 +142,34 @@ export function LiveRecorder({
 
   async function handleStart() {
     timeOriginRef.current = Date.now()
+    setSegments(null)
 
-    if (!speakerSeparation) {
+    if (mode === 'off') {
       startListening()
       return
     }
 
     setPendingStart(true)
-    await capture.start({ withSystemAudio: true })
+    await capture.start({ withSystemAudio: mode === 'remote' })
   }
 
-  function handleStop() {
+  async function handleStop() {
     local.stopListening()
     remote.stopListening()
+
+    // 대면 모드는 녹음이 끝난 뒤 전체 오디오에 한 번 화자 분리를 돌린다.
+    let finalChunks = chunks
+    if (mode === 'in-person') {
+      const result = await diarization.finish(attendeeCount)
+      if (result.length > 0) {
+        setSegments(result)
+        finalChunks = assignSpeakers(local.chunks, result, diarizedSpeakerId)
+      }
+    }
+
     capture.stop()
 
-    const transcript = formatTranscriptChunks(chunks, speakerNames)
+    const transcript = formatTranscriptChunks(finalChunks, speakerNames)
     if (transcript.length > 0) {
       onTranscriptReady(transcript)
     }
@@ -154,6 +178,8 @@ export function LiveRecorder({
   function handleReset() {
     local.resetChunks()
     remote.resetChunks()
+    diarization.reset()
+    setSegments(null)
   }
 
   const lastUpdatedLabel = lastUpdatedAt
@@ -240,64 +266,123 @@ export function LiveRecorder({
 
       {!isListening && chunks.length === 0 && (
         <div className="rounded-xl border border-neutral-200 bg-white p-4">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={speakerSeparation}
-              onChange={(e) => setSpeakerSeparation(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-purple-600"
-            />
-            <span>
-              <span className="text-sm font-medium text-neutral-800">
-                화자 분리 (원격 회의)
-              </span>
-              <span className="mt-0.5 block text-xs text-neutral-500">
-                내 마이크와 상대 목소리를 별도 트랙으로 받아 구분합니다. 추론이 없어
-                정확합니다. 시작 시 <strong>화면 공유 대화상자에서 &ldquo;탭 오디오 공유&rdquo;를
-                반드시 켜주세요.</strong>
-              </span>
-              <span className="mt-1.5 block text-xs text-amber-700">
-                한 대의 노트북을 앞에 두고 마주 앉은 <strong>대면 회의에서는 동작하지
-                않습니다.</strong> 마이크 하나에 두 사람 목소리가 섞여 들어오기 때문입니다.
-                이 경우 화자 라벨 없이 녹음되며, 대면 화자 분리는 준비 중입니다.
-              </span>
-            </span>
-          </label>
+          <p className="mb-3 text-sm font-medium text-neutral-800">화자 분리</p>
 
-          {speakerSeparation && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1 block text-xs text-neutral-500">내 이름</span>
-                <input
-                  type="text"
-                  value={speakerNames[LOCAL_SPEAKER] ?? ''}
-                  onChange={(e) =>
-                    setSpeakerNames((prev) => ({
-                      ...prev,
-                      [LOCAL_SPEAKER]: e.target.value,
-                    }))
-                  }
-                  placeholder="나"
-                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs text-neutral-500">상대 이름</span>
-                <input
-                  type="text"
-                  value={speakerNames[REMOTE_SPEAKER] ?? ''}
-                  onChange={(e) =>
-                    setSpeakerNames((prev) => ({
-                      ...prev,
-                      [REMOTE_SPEAKER]: e.target.value,
-                    }))
-                  }
-                  placeholder="상대"
-                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
-                />
-              </label>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { id: 'off', label: '사용 안 함' },
+                { id: 'remote', label: '원격 회의' },
+                { id: 'in-person', label: '대면 회의' },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.id}
+                onClick={() => setMode(option.id)}
+                disabled={option.id === 'in-person' && diarization.available === false}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition-all disabled:opacity-40 ${
+                  mode === option.id
+                    ? 'border-purple-400 bg-purple-50 text-purple-700'
+                    : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'remote' && (
+            <>
+              <p className="mt-3 text-xs text-neutral-500">
+                내 마이크와 상대 목소리를 별도 트랙으로 받아 구분합니다. 추론이 없어
+                정확합니다. 시작 시{' '}
+                <strong>화면 공유 대화상자에서 &ldquo;탭 오디오 공유&rdquo;를 반드시 켜주세요.</strong>
+              </p>
+              <p className="mt-1.5 text-xs text-amber-700">
+                노트북 한 대를 두고 마주 앉은 대면 회의에서는 동작하지 않습니다.
+                그 경우 &ldquo;대면 회의&rdquo;를 선택하세요.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    { id: LOCAL_SPEAKER, label: '내 이름', placeholder: '나' },
+                    { id: REMOTE_SPEAKER, label: '상대 이름', placeholder: '상대' },
+                  ] as const
+                ).map((field) => (
+                  <label key={field.id} className="block">
+                    <span className="mb-1 block text-xs text-neutral-500">
+                      {field.label}
+                    </span>
+                    <input
+                      type="text"
+                      value={speakerNames[field.id] ?? ''}
+                      onChange={(e) =>
+                        setSpeakerNames((prev) => ({
+                          ...prev,
+                          [field.id]: e.target.value,
+                        }))
+                      }
+                      placeholder={field.placeholder}
+                      className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
+                    />
+                  </label>
+                ))}
+              </div>
+            </>
           )}
+
+          {mode === 'in-person' && (
+            <>
+              <p className="mt-3 text-xs text-neutral-500">
+                마이크 하나에 섞여 들어온 목소리를 내 PC에서 분석해 화자를 나눕니다.
+                외부로 오디오를 보내지 않습니다.{' '}
+                <strong>녹음이 끝난 뒤 한 번에 분석</strong>하므로 실시간 화자 표시는 없습니다.
+              </p>
+              <label className="mt-4 block max-w-40">
+                <span className="mb-1 block text-xs text-neutral-500">참석자 수</span>
+                <input
+                  type="number"
+                  min={2}
+                  max={8}
+                  value={attendeeCount}
+                  onChange={(e) =>
+                    setAttendeeCount(Math.max(2, Math.min(8, Number(e.target.value) || 2)))
+                  }
+                  className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
+                />
+                <span className="mt-1 block text-xs text-neutral-500">
+                  정확한 수를 넣을수록 결과가 좋아집니다. 자동 추정은 화자 수를 잘못 세는
+                  경우가 많습니다.
+                </span>
+              </label>
+            </>
+          )}
+
+          {diarization.available === false && (
+            <p className="mt-3 text-xs text-amber-700">
+              대면 회의 화자 분리를 쓰려면 모델이 필요합니다 —{' '}
+              <code className="rounded bg-amber-50 px-1">npm run setup:diarization</code>{' '}
+              을 실행한 뒤 서버를 다시 시작하세요.
+            </p>
+          )}
+        </div>
+      )}
+
+      {diarization.status.state === 'analyzing' && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-700">
+          화자를 분석하는 중입니다... 회의가 길수록 시간이 걸립니다.
+        </div>
+      )}
+
+      {diarization.status.state === 'done' && (
+        <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+          화자 {diarization.status.speakers}명을 구분했습니다.
+        </div>
+      )}
+
+      {diarization.status.state === 'error' && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <strong>화자 분리 오류:</strong> {diarization.status.message}
         </div>
       )}
 

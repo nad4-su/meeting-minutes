@@ -43,8 +43,17 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:?required}:${POSTGRES_PASSWORD:?required}@db:5432/${POSTGRES_DB:?required}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # OpenAI 호환 프로바이더 (선택) — 없으면 브라우저에 저장된 설정을 쓴다
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      DIARIZATION_MODEL_DIR: /app/models/diarization
     volumes:
       - uploads:/app/uploads
+      # 화자 분리 모델 — 호스트에서 npm run setup:diarization 으로 받은 것을 읽기 전용으로 마운트.
+      # 없으면 빈 디렉터리가 되고 대면 화자 분리만 비활성화된다 (앱은 정상 동작).
+      - ./models:/app/models:ro
     depends_on:
       db:
         condition: service_healthy
