@@ -52,3 +52,6 @@ next-env.d.ts
 
 # 화자 분리 모델 (npm run setup:diarization 으로 내려받음)
 models/
+
+# 로컬 개발용 compose 오버라이드
+docker-compose.override.yml
