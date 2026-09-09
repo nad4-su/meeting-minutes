@@ -1,9 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { AudioUploader } from '@/components/upload/AudioUploader'
 import { LiveRecorder } from '@/components/recorder/LiveRecorder'
+import type { CompletedRecording } from '@/hooks/useAudioRecorder'
+import { extensionForMimeType } from '@/lib/recording'
 import { MinutesViewer } from '@/components/minutes/MinutesViewer'
 import { getProviderRequestPayload } from '@/lib/api-key-storage'
 import {
@@ -43,6 +45,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [audio, setAudio] = useState<CompletedRecording | null>(null)
 
   const templateList = useMemo(
     () => [
@@ -145,6 +148,19 @@ export default function HomePage() {
     setTranscript(text)
     generateMinutes(text, summaryMode)
   }
+
+  const handleRecordingReady = useCallback((recording: CompletedRecording) => {
+    setAudio(recording)
+  }, [])
+
+  // 회의록과 함께 저장할 오디오 정보. 서버 사본이 없으면 붙일 게 없다.
+  const audioMeta = audio?.recordingId
+    ? {
+        audioFileName: `${audio.recordingId}.${extensionForMimeType(audio.mimeType)}`,
+        audioMimeType: audio.mimeType,
+        audioDuration: Math.round(audio.durationMs / 1000),
+      }
+    : undefined
 
   const liveSummaryActive =
     summaryMode === 'gemini' && activeTemplateMeta.live && tab === 'record'
@@ -328,6 +344,8 @@ export default function HomePage() {
           {tab === 'record' ? (
             <LiveRecorder
               onTranscriptReady={handleTranscriptReady}
+              onRecordingReady={handleRecordingReady}
+              title={title}
               liveSummaryEnabled={liveSummaryActive}
               template={template}
               depth={depth}
@@ -391,6 +409,7 @@ export default function HomePage() {
             depth={depth}
             customPrompt={template === 'custom' ? customPrompt : undefined}
             summaryMode={summaryMode}
+            audio={audioMeta}
           />
         )}
       </div>

@@ -22,6 +22,12 @@ interface MinutesViewerProps {
   depth?: SummaryDepth
   customPrompt?: string
   summaryMode?: 'simple' | 'gemini'
+  /** 이 회의록의 원본 오디오. 서버에 보관된 녹음이 있을 때만 붙는다. */
+  audio?: {
+    audioFileName: string
+    audioMimeType: string
+    audioDuration: number
+  }
 }
 
 type SaveState =
@@ -38,6 +44,7 @@ export function MinutesViewer({
   template,
   depth,
   customPrompt,
+  audio,
   summaryMode,
 }: MinutesViewerProps) {
   const [renderedView, setRenderedView] = useState<'rendered' | 'raw'>(
@@ -110,6 +117,7 @@ export function MinutesViewer({
           template,
           depth,
           customPrompt,
+          ...audio,
         }),
       })
       const data = await res.json()
