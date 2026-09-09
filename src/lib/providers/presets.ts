@@ -1,4 +1,5 @@
-import { DEFAULT_GEMINI_MODEL } from './gemini'
+import { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_STT_MODEL } from './gemini'
+import { DEFAULT_OPENAI_STT_MODEL } from './openai-compatible'
 import type { ProviderId } from './types'
 
 export interface ProviderPreset {
@@ -8,6 +9,10 @@ export interface ProviderPreset {
   /** openai-compatible 프리셋의 기본 base URL. 사용자가 수정할 수 있다. */
   baseUrl: string
   defaultModel: string
+  /** 음성 전사(STT)에 쓸 기본 모델. 요약용 모델과 다르다. */
+  defaultSttModel: string
+  /** 이 프로바이더로 브라우저 녹음(webm)을 전사할 수 있는지. */
+  canTranscribeWebm: boolean
   description: string
   apiKeyLabel: string
   apiKeyPlaceholder: string
@@ -25,6 +30,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     provider: 'gemini',
     baseUrl: '',
     defaultModel: DEFAULT_GEMINI_MODEL,
+    defaultSttModel: DEFAULT_GEMINI_STT_MODEL,
+    // Gemini는 webm 오디오를 받지 않는다 — 업로드한 mp3/wav/flac만 전사 가능.
+    canTranscribeWebm: false,
     description: 'Google에 직접 호출합니다. 무료 티어가 있어 가장 간단합니다.',
     apiKeyLabel: 'Gemini API 키',
     apiKeyPlaceholder: 'AIzaSy...',
@@ -39,7 +47,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     provider: 'openai-compatible',
     baseUrl: 'https://api.openai.com/v1',
     defaultModel: 'gpt-4o-mini',
-    description: 'OpenAI Chat Completions API를 사용합니다.',
+    defaultSttModel: DEFAULT_OPENAI_STT_MODEL,
+    canTranscribeWebm: true,
+    description: 'OpenAI Chat Completions + Whisper 전사를 사용합니다.',
     apiKeyLabel: 'OpenAI API 키',
     apiKeyPlaceholder: 'sk-...',
     docsUrl: 'https://platform.openai.com/api-keys',
@@ -52,6 +62,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     provider: 'openai-compatible',
     baseUrl: 'https://api.orcarouter.ai/v1',
     defaultModel: 'google/gemini-3.5-flash-lite',
+    defaultSttModel: 'openai/whisper-1',
+    canTranscribeWebm: true,
     description:
       '하나의 키로 여러 제공사 모델을 사용합니다. 별도 가입과 크레딧 충전(또는 BYOK 등록)이 필요합니다.',
     apiKeyLabel: 'OrcaRouter API 키',
@@ -67,6 +79,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     provider: 'openai-compatible',
     baseUrl: 'http://localhost:11434/v1',
     defaultModel: 'llama3.1',
+    defaultSttModel: 'whisper-1',
+    canTranscribeWebm: true,
     description:
       'Ollama · LM Studio · vLLM 등 내 PC에서 도는 모델. 회의 내용이 외부로 나가지 않습니다.',
     apiKeyLabel: 'API 키 (보통 불필요)',
@@ -80,6 +94,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     provider: 'openai-compatible',
     baseUrl: '',
     defaultModel: '',
+    defaultSttModel: DEFAULT_OPENAI_STT_MODEL,
+    canTranscribeWebm: true,
     description: 'OpenAI 호환 엔드포인트라면 무엇이든 연결할 수 있습니다.',
     apiKeyLabel: 'API 키',
     apiKeyPlaceholder: 'sk-...',

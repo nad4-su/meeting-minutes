@@ -5,13 +5,18 @@ import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useLiveSummary } from '@/hooks/useLiveSummary'
 import { useAudioRecorder, type CompletedRecording } from '@/hooks/useAudioRecorder'
 import { formatTranscriptChunks } from '@/lib/transcript-formatter'
+import { useTranscription } from '@/hooks/useTranscription'
 import { formatBytes, formatDuration } from '@/lib/recording'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 interface LiveRecorderProps {
   onTranscriptReady: (transcript: string) => void
   onRecordingReady?: (recording: CompletedRecording) => void
+  /** STT 재전사 결과로 전사문을 갈아끼운다. */
+  onTranscriptReplaced?: (transcript: string) => void
   title: string
+  /** 참석자 등 고유명사 힌트. STT 정확도를 올린다. */
+  vocabularyHint?: string
   liveSummaryEnabled: boolean
   template: TemplateId
   depth: SummaryDepth
@@ -21,7 +26,9 @@ interface LiveRecorderProps {
 export function LiveRecorder({
   onTranscriptReady,
   onRecordingReady,
+  onTranscriptReplaced,
   title,
+  vocabularyHint,
   liveSummaryEnabled,
   template,
   depth,
@@ -52,6 +59,14 @@ export function LiveRecorder({
     downloadRecording,
     reset: resetRecording,
   } = useAudioRecorder()
+
+  const {
+    isTranscribing,
+    error: transcriptionError,
+    result: transcription,
+    transcribeRecording,
+    reset: resetTranscription,
+  } = useTranscription()
 
   const {
     summary,
@@ -106,6 +121,7 @@ export function LiveRecorder({
 
   async function handleStart() {
     resetRecording()
+    resetTranscription()
     // 오디오 녹음을 먼저 건다. 전사가 실패하더라도 원본은 남아야 한다.
     await startRecording()
     startListening()
@@ -180,6 +196,21 @@ export function LiveRecorder({
           </button>
         )}
 
+        {recording?.recordingId && !isListening && (
+          <button
+            onClick={async () => {
+              const outcome = await transcribeRecording(recording.recordingId!, {
+                vocabularyHint,
+              })
+              if (outcome?.transcript) onTranscriptReplaced?.(outcome.transcript)
+            }}
+            disabled={isTranscribing}
+            className="flex items-center gap-2 rounded-full bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isTranscribing ? '전사 중… (몇 분 걸릴 수 있습니다)' : '🔤 원본 오디오로 다시 전사'}
+          </button>
+        )}
+
         {recording && !isListening && (
           <button
             onClick={() => downloadRecording(title)}
@@ -194,6 +225,7 @@ export function LiveRecorder({
             onClick={() => {
               resetChunks()
               resetRecording()
+              resetTranscription()
             }}
             className="rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-600 hover:bg-neutral-50 transition-colors"
           >
@@ -243,6 +275,22 @@ export function LiveRecorder({
       {recognitionError && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <strong>음성 인식 오류:</strong> {recognitionError}
+        </div>
+      )}
+
+      {transcriptionError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <strong>전사 오류:</strong> {transcriptionError}
+        </div>
+      )}
+
+      {transcription && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+          <strong>🔤 재전사 완료</strong> — {transcription.model} 모델,{' '}
+          {transcription.segments.length > 0
+            ? `${transcription.segments.length}개 구간 (실제 오디오 타임스탬프)`
+            : '타임스탬프 없음'}
+          . 아래 텍스트가 교체되었습니다.
         </div>
       )}
 

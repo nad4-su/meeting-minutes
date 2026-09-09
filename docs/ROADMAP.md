@@ -186,11 +186,17 @@ flush해서 7%를 20~30%로는 올려도 90%로는 못 간다. 구현 결함이 
   - [x] 0바이트일 때 "보관됨"이라고 하지 않음
   - [x] 캡처 제약에서 노이즈 억제·에코 제거 해제 (원거리 화자 보존)
   - [x] 회의록 저장 시 `audioFileName`/`audioMimeType`/`audioDuration` 연결
-- [ ] **서버 STT 파이프라인** — 녹음 파일 → Whisper / Gemini audio → transcript
-  - [ ] `/api/upload`를 막다른 길에서 본선 경로로 승격
-  - [ ] 프로바이더 레이어에 `/v1/audio/transcriptions` 추가 (#12 구조 확장)
-  - [ ] Web Speech는 "녹음 중 실시간 미리보기"로 강등, 확정본은 종료 후 재전사
-  - [ ] 같은 오디오로 Web Speech vs STT 포착률 실측 비교
+- [x] **서버 STT 파이프라인** — 녹음 파일 → Whisper / Gemini audio → transcript
+  - [x] `/api/upload`를 막다른 길에서 본선 경로로 승격 (업로드 → recordingId → 전사)
+  - [x] 프로바이더 레이어에 `/v1/audio/transcriptions` 추가 (#12 구조 확장)
+  - [x] Gemini 오디오 inline 입력 (webm 미지원은 명시적으로 안내)
+  - [x] `verbose_json`으로 실제 오디오 타임스탬프 확보
+  - [x] 참석자·용어 힌트를 전사 프롬프트로 전달
+  - [x] 녹음 비트레이트 32kbps로 하향 — 46분 회의가 11MB로 API 상한 안에 들어옴
+  - [ ] 같은 오디오로 Web Speech vs STT 포착률 실측 비교 ← **다음 회의에서**
+  - [ ] 상한 초과 회의 분할 전사 (Whisper 25MB / Gemini inline 14MB)
+  - [ ] Gemini Files API 경로 (큰 파일 + webm 우회)
+  - [ ] Web Speech를 "실시간 미리보기"로 명시적 강등 (현재는 둘 다 노출)
 - [ ] **빈 청크 필터링** — 빈 발화 19개가 요약 프롬프트를 오염시키고 있음
 - [ ] **타임스탬프 실측화** — `useSpeechRecognition.ts`의 `startTime: now - 2` 하드코딩 제거
 - [ ] **10만 자 하드 실패 → 분할 요약** — 긴 회의가 마지막에 통째로 실패함

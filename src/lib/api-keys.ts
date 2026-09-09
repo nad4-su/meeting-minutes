@@ -1,4 +1,9 @@
-import { isProviderId, type ProviderId, type ProviderSettings } from './providers'
+import {
+  isProviderId,
+  type ProviderId,
+  type ProviderSettings,
+  type TranscriptionSettings,
+} from './providers'
 
 /**
  * Gemini API 키 해석 우선순위:
@@ -87,4 +92,39 @@ function str(value: unknown): string {
 
 function env(name: string): string {
   return (process.env[name] ?? '').trim()
+}
+
+export interface TranscriptionRequestBody extends ProviderRequestBody {
+  sttModel?: unknown
+}
+
+/**
+ * 전사용 프로바이더 설정.
+ *
+ * 요약과 달리 대화 모델 이름이 없어도 된다. 전사는 `sttModel`(비우면 프로바이더
+ * 기본값)로 별도 엔드포인트를 호출하므로, 대화 모델을 지정하지 않은 사용자도
+ * 전사는 쓸 수 있어야 한다.
+ */
+export function resolveTranscriptionSettings(
+  body: TranscriptionRequestBody | null | undefined,
+): TranscriptionSettings | null {
+  const provider = resolveProvider(body?.provider)
+  const sttModel = str(body?.sttModel) || env('LLM_STT_MODEL')
+
+  if (provider === 'gemini') {
+    const apiKey = resolveGeminiApiKey(str(body?.apiKey) || env('LLM_API_KEY'))
+    if (!apiKey) return null
+    return { provider, apiKey, sttModel: sttModel || undefined }
+  }
+
+  const baseUrl = str(body?.baseUrl) || env('LLM_BASE_URL')
+  if (baseUrl.length === 0) return null
+
+  return {
+    provider,
+    apiKey: str(body?.apiKey) || env('LLM_API_KEY'),
+    baseUrl,
+    model: str(body?.model) || env('LLM_MODEL'),
+    sttModel: sttModel || undefined,
+  }
 }

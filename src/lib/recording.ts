@@ -40,8 +40,17 @@ export const RECORDING_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
  */
 export const CHUNK_INTERVAL_MS = 15_000
 
-/** 음성 전용이므로 128kbps면 STT에 충분하고도 남는다. */
-export const AUDIO_BITS_PER_SECOND = 128_000
+/**
+ * 녹음 비트레이트.
+ *
+ * 이 오디오는 감상용이 아니라 STT 입력이다. Opus는 음성 대역에서 32kbps만
+ * 되어도 인식 정확도에 영향이 없고, 대신 파일이 작아야 전사 API에 통째로
+ * 넣을 수 있다. 128kbps로 두면 46분 회의가 44MB가 되어 Whisper 상한(25MB)도,
+ * Gemini inline 상한도 넘긴다.
+ *
+ * 32kbps 기준 대략:  46분 → 11MB,  1시간 → 14MB,  1시간 40분 → 24MB
+ */
+export const AUDIO_BITS_PER_SECOND = 32_000
 
 /** 회의 하나의 상한. 128kbps 기준 약 8.6시간. */
 export const MAX_RECORDING_BYTES = 500 * 1024 * 1024

@@ -71,6 +71,8 @@ describe('프로바이더 설정 저장', () => {
       apiKey: 'sk-test',
       baseUrl: 'https://api.orcarouter.ai/v1',
       model: 'google/gemini-2.5-flash-lite',
+      // 예전에 저장된 설정에는 sttModel이 없다. 빈 값으로 채워 마이그레이션 없이 읽힌다.
+      sttModel: '',
     })
   })
 
@@ -105,6 +107,7 @@ describe('getProviderRequestPayload', () => {
       apiKey: 'AIza-legacy',
       baseUrl: '',
       model: '',
+      sttModel: '',
     })
   })
 
@@ -114,6 +117,7 @@ describe('getProviderRequestPayload', () => {
       apiKey: '',
       baseUrl: '',
       model: '',
+      sttModel: '',
     })
   })
 
@@ -130,6 +134,7 @@ describe('getProviderRequestPayload', () => {
       apiKey: '',
       baseUrl: 'http://localhost:11434/v1',
       model: 'llama3.1',
+      sttModel: '',
     })
   })
 

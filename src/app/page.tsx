@@ -6,6 +6,7 @@ import { AudioUploader } from '@/components/upload/AudioUploader'
 import { LiveRecorder } from '@/components/recorder/LiveRecorder'
 import type { CompletedRecording } from '@/hooks/useAudioRecorder'
 import { extensionForMimeType } from '@/lib/recording'
+import { useTranscription } from '@/hooks/useTranscription'
 import { MinutesViewer } from '@/components/minutes/MinutesViewer'
 import { getProviderRequestPayload } from '@/lib/api-key-storage'
 import {
@@ -46,6 +47,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [audio, setAudio] = useState<CompletedRecording | null>(null)
+  const [uploadedRecordingId, setUploadedRecordingId] = useState<string | null>(null)
+  const [attendees, setAttendees] = useState('')
 
   const templateList = useMemo(
     () => [
@@ -80,6 +83,7 @@ export default function HomePage() {
 
   async function handleUpload(file: File) {
     setUploadedFile(file)
+    setUploadedRecordingId(null)
     setError(null)
 
     const formData = new FormData()
@@ -96,6 +100,7 @@ export default function HomePage() {
       }
 
       if (!title) setTitle(data.title)
+      setUploadedRecordingId(data.recordingId ?? null)
     } catch {
       setError('파일 업로드에 실패했습니다.')
     }
@@ -153,6 +158,24 @@ export default function HomePage() {
     setAudio(recording)
   }, [])
 
+  const {
+    isTranscribing: isTranscribingUpload,
+    error: uploadTranscribeError,
+    result: uploadTranscription,
+    transcribeRecording: transcribeUpload,
+  } = useTranscription()
+
+  async function transcribeUploadedFile() {
+    if (!uploadedRecordingId) return
+    const outcome = await transcribeUpload(uploadedRecordingId, {
+      vocabularyHint: attendees,
+    })
+    if (outcome?.transcript) {
+      setTranscript(outcome.transcript)
+      generateMinutes(outcome.transcript, summaryMode)
+    }
+  }
+
   // 회의록과 함께 저장할 오디오 정보. 서버 사본이 없으면 붙일 게 없다.
   const audioMeta = audio?.recordingId
     ? {
@@ -202,6 +225,22 @@ export default function HomePage() {
             placeholder="예: 주간 스프린트 회의"
             className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-neutral-800 placeholder:text-neutral-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
           />
+        </section>
+
+        <section className="mb-8">
+          <label className="block text-sm font-medium text-neutral-600 mb-2">
+            참석자 · 용어 <span className="font-normal text-neutral-400">(선택)</span>
+          </label>
+          <input
+            type="text"
+            value={attendees}
+            onChange={(e) => setAttendees(e.target.value)}
+            placeholder="예: 김효천, 이지안, 계명대동산병원, PACS"
+            className="w-full rounded-xl border border-neutral-300 px-4 py-3 text-sm text-neutral-800 placeholder:text-neutral-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
+          />
+          <p className="mt-1.5 text-xs text-neutral-500">
+            이름·제품명·사내 용어를 적어두면 전사가 고유명사를 훨씬 정확히 잡습니다.
+          </p>
         </section>
 
         <section className="mb-8 space-y-5">
@@ -345,7 +384,9 @@ export default function HomePage() {
             <LiveRecorder
               onTranscriptReady={handleTranscriptReady}
               onRecordingReady={handleRecordingReady}
+              onTranscriptReplaced={setTranscript}
               title={title}
+              vocabularyHint={attendees}
               liveSummaryEnabled={liveSummaryActive}
               template={template}
               depth={depth}
@@ -370,12 +411,39 @@ export default function HomePage() {
           </section>
         )}
 
-        {uploadedFile && !transcript && (
-          <section className="mb-8">
+        {uploadedFile && (
+          <section className="mb-8 space-y-3">
             <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700">
-              <strong>{uploadedFile.name}</strong> 업로드 완료.
-              실시간 녹음 탭에서 음성 인식을 시작하거나, 텍스트를 직접 입력해주세요.
+              <strong>{uploadedFile.name}</strong> 업로드 완료
+              {uploadedRecordingId
+                ? ' — 아래 버튼으로 전사를 시작하세요.'
+                : ' — 서버 저장에 실패해 전사할 수 없습니다.'}
             </div>
+
+            {uploadedRecordingId && (
+              <button
+                onClick={transcribeUploadedFile}
+                disabled={isTranscribingUpload}
+                className="w-full rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isTranscribingUpload
+                  ? '전사 중… 회의 길이에 따라 몇 분 걸릴 수 있습니다'
+                  : '🔤 전사 시작'}
+              </button>
+            )}
+
+            {uploadTranscribeError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                <strong>전사 오류:</strong> {uploadTranscribeError}
+              </div>
+            )}
+
+            {uploadTranscription && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+                🔤 전사 완료 — {uploadTranscription.model} 모델,{' '}
+                {uploadTranscription.segments.length}개 구간
+              </div>
+            )}
           </section>
         )}
 

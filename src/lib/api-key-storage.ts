@@ -48,6 +48,8 @@ export interface StoredProviderConfig {
   apiKey: string
   baseUrl: string
   model: string
+  /** 음성 전사 모델. 비우면 프리셋 기본값을 쓴다. */
+  sttModel?: string
 }
 
 export interface ProviderRequestPayload {
@@ -55,6 +57,7 @@ export interface ProviderRequestPayload {
   apiKey: string
   baseUrl: string
   model: string
+  sttModel: string
 }
 
 export function getStoredProviderConfig(): StoredProviderConfig | null {
@@ -69,6 +72,7 @@ export function getStoredProviderConfig(): StoredProviderConfig | null {
       apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey : '',
       baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl : '',
       model: typeof parsed.model === 'string' ? parsed.model : '',
+      sttModel: typeof parsed.sttModel === 'string' ? parsed.sttModel : '',
     }
   } catch {
     return null
@@ -108,6 +112,7 @@ export function getProviderRequestPayload(): ProviderRequestPayload {
       apiKey: getStoredApiKey() ?? '',
       baseUrl: '',
       model: '',
+      sttModel: '',
     }
   }
 
@@ -117,5 +122,6 @@ export function getProviderRequestPayload(): ProviderRequestPayload {
     apiKey: stored.apiKey || (preset.provider === 'gemini' ? getStoredApiKey() ?? '' : ''),
     baseUrl: stored.baseUrl,
     model: stored.model,
+    sttModel: stored.sttModel ?? '',
   }
 }
