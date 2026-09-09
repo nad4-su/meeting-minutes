@@ -3,11 +3,15 @@
 import { useEffect, useRef } from 'react'
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition'
 import { useLiveSummary } from '@/hooks/useLiveSummary'
+import { useAudioRecorder, type CompletedRecording } from '@/hooks/useAudioRecorder'
 import { formatTranscriptChunks } from '@/lib/transcript-formatter'
+import { formatBytes, formatDuration } from '@/lib/recording'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
 
 interface LiveRecorderProps {
   onTranscriptReady: (transcript: string) => void
+  onRecordingReady?: (recording: CompletedRecording) => void
+  title: string
   liveSummaryEnabled: boolean
   template: TemplateId
   depth: SummaryDepth
@@ -16,6 +20,8 @@ interface LiveRecorderProps {
 
 export function LiveRecorder({
   onTranscriptReady,
+  onRecordingReady,
+  title,
   liveSummaryEnabled,
   template,
   depth,
@@ -31,6 +37,21 @@ export function LiveRecorder({
     stopListening,
     resetChunks,
   } = useSpeechRecognition()
+
+  const {
+    isRecording,
+    isSupported: isRecordingSupported,
+    error: recordingError,
+    uploadWarning,
+    elapsedMs,
+    localBytes,
+    uploadedBytes,
+    recording,
+    startRecording,
+    stopRecording,
+    downloadRecording,
+    reset: resetRecording,
+  } = useAudioRecorder()
 
   const {
     summary,
@@ -59,6 +80,11 @@ export function LiveRecorder({
     summaryEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
   }, [summary])
 
+  // 녹음이 끝나 파일이 확정되면 상위로 올려 회의록과 함께 저장되게 한다.
+  useEffect(() => {
+    if (recording) onRecordingReady?.(recording)
+  }, [recording, onRecordingReady])
+
   if (isSupported === null) {
     return (
       <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-6 text-center text-sm text-neutral-400">
@@ -78,12 +104,22 @@ export function LiveRecorder({
     )
   }
 
-  function handleStop() {
+  async function handleStart() {
+    resetRecording()
+    // 오디오 녹음을 먼저 건다. 전사가 실패하더라도 원본은 남아야 한다.
+    await startRecording()
+    startListening()
+  }
+
+  async function handleStop() {
     stopListening()
+
     const transcript = formatTranscriptChunks(chunks)
     if (transcript.length > 0) {
       onTranscriptReady(transcript)
     }
+
+    await stopRecording()
   }
 
   const lastUpdatedLabel = lastUpdatedAt
@@ -136,7 +172,7 @@ export function LiveRecorder({
           </button>
         ) : (
           <button
-            onClick={startListening}
+            onClick={handleStart}
             className="flex items-center gap-2 rounded-full bg-blue-600 px-6 py-3 text-white font-medium shadow-lg shadow-blue-600/25 hover:bg-blue-700 transition-colors"
           >
             <span className="text-lg">🎤</span>
@@ -144,9 +180,21 @@ export function LiveRecorder({
           </button>
         )}
 
+        {recording && !isListening && (
+          <button
+            onClick={() => downloadRecording(title)}
+            className="flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors"
+          >
+            ⬇️ 오디오 내려받기 ({formatBytes(recording.blob.size)})
+          </button>
+        )}
+
         {chunks.length > 0 && !isListening && (
           <button
-            onClick={resetChunks}
+            onClick={() => {
+              resetChunks()
+              resetRecording()
+            }}
             className="rounded-full border border-neutral-300 px-4 py-2 text-sm text-neutral-600 hover:bg-neutral-50 transition-colors"
           >
             초기화
@@ -159,11 +207,59 @@ export function LiveRecorder({
             녹음 중 · {wordCount}단어 · {chunks.length}개 구간
           </div>
         )}
+
+        {isRecording && (
+          <div className="flex items-center gap-2 rounded-full bg-neutral-100 px-4 py-1.5 text-xs text-neutral-600">
+            <span className="text-sm">🎧</span>
+            오디오 {formatDuration(elapsedMs)} · 저장 {formatBytes(uploadedBytes)}
+            {localBytes > 0 && uploadedBytes < localBytes && (
+              <span className="text-amber-600">
+                (전송 대기 {formatBytes(localBytes - uploadedBytes)})
+              </span>
+            )}
+          </div>
+        )}
       </div>
+
+      {isRecordingSupported === false && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          이 브라우저는 오디오 녹음을 지원하지 않습니다. 전사만 진행되며,
+          <strong> 놓친 발화를 나중에 복구할 수 없습니다.</strong> Chrome을 사용해주세요.
+        </div>
+      )}
+
+      {recordingError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <strong>오디오 녹음 오류:</strong> {recordingError}
+        </div>
+      )}
+
+      {uploadWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <strong>⚠️ 서버 저장 문제:</strong> {uploadWarning}
+        </div>
+      )}
 
       {recognitionError && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <strong>음성 인식 오류:</strong> {recognitionError}
+        </div>
+      )}
+
+      {recording && !isListening && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <strong>
+            🎧 오디오 {formatDuration(recording.durationMs)} ·{' '}
+            {formatBytes(recording.blob.size)} 확보
+          </strong>
+          {' — '}
+          {recording.recordingId
+            ? `서버에 ${formatBytes(recording.uploadedBytes)} 저장됨.`
+            : '서버 저장 실패 — 브라우저 사본만 있습니다.'}{' '}
+          전사가 놓친 발화는 이 오디오로 다시 살릴 수 있습니다.
+          {!recording.recordingId && (
+            <strong> 지금 내려받아 보관해주세요.</strong>
+          )}
         </div>
       )}
 

@@ -79,6 +79,9 @@ export async function POST(request: NextRequest) {
       customPrompt,
       attendees,
       tags,
+      audioFileName,
+      audioMimeType,
+      audioDuration,
     } = body
 
     if (!title || typeof title !== 'string' || title.trim().length === 0) {
@@ -112,6 +115,14 @@ export async function POST(request: NextRequest) {
         tags: Array.isArray(tags)
           ? tags.filter((t) => typeof t === 'string')
           : [],
+        audioFileName:
+          typeof audioFileName === 'string' ? audioFileName : null,
+        audioMimeType:
+          typeof audioMimeType === 'string' ? audioMimeType : null,
+        audioDuration:
+          typeof audioDuration === 'number' && Number.isFinite(audioDuration)
+            ? Math.max(0, Math.round(audioDuration))
+            : null,
         status: 'COMPLETED',
         actionItems: {
           create: parsed.map((item, index) => ({
