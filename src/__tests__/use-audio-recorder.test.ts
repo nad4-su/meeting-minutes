@@ -99,6 +99,45 @@ describe('useAudioRecorder — 캡처 제약', () => {
   })
 })
 
+describe('useAudioRecorder — 시간축', () => {
+  it('캡처 시작 시각을 돌려준다', async () => {
+    // 이 값을 인식기에 넘겨야 전사 타임스탬프가 오디오 파일과 같은 축을 쓴다.
+    const before = Date.now()
+    const view = renderHook(() => useAudioRecorder())
+    await waitFor(() => expect(view.result.current.isSupported).toBe(true))
+
+    let startedAt: number | null = null
+    await act(async () => {
+      startedAt = await view.result.current.startRecording()
+    })
+
+    expect(startedAt).not.toBeNull()
+    expect(startedAt!).toBeGreaterThanOrEqual(before)
+    expect(startedAt!).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('마이크를 못 열면 null', async () => {
+    vi.stubGlobal('navigator', {
+      mediaDevices: {
+        getUserMedia: vi.fn(async () => {
+          throw Object.assign(new Error('denied'), { name: 'NotAllowedError' })
+        }),
+      },
+    })
+
+    const view = renderHook(() => useAudioRecorder())
+    await waitFor(() => expect(view.result.current.isSupported).toBe(true))
+
+    let startedAt: number | null = 0
+    await act(async () => {
+      startedAt = await view.result.current.startRecording()
+    })
+
+    expect(startedAt).toBeNull()
+    expect(view.result.current.error).toContain('마이크 권한')
+  })
+})
+
 describe('useAudioRecorder — 조각 업로드', () => {
   it('조각이 생길 때마다 서버로 올린다', async () => {
     const view = await startedHook()

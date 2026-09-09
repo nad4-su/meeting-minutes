@@ -40,6 +40,7 @@ export function LiveRecorder({
     chunks,
     interimText,
     error: recognitionError,
+    missedCount,
     startListening,
     stopListening,
     resetChunks,
@@ -123,14 +124,18 @@ export function LiveRecorder({
     resetRecording()
     resetTranscription()
     // 오디오 녹음을 먼저 건다. 전사가 실패하더라도 원본은 남아야 한다.
-    await startRecording()
-    startListening()
+    // 녹음 시작 시각을 인식기에 넘겨, 전사 타임스탬프가 오디오 파일의
+    // 재생 위치와 같은 시간축을 쓰게 한다.
+    const audioStartedAt = await startRecording()
+    startListening(audioStartedAt ?? undefined)
   }
 
   async function handleStop() {
-    stopListening()
+    // 훅이 미확정 발화까지 굳혀서 돌려준다. 렌더 시점의 `chunks`를 쓰면
+    // 회의 마지막 문장이 빠진다.
+    const finalChunks = stopListening()
 
-    const transcript = formatTranscriptChunks(chunks)
+    const transcript = formatTranscriptChunks(finalChunks)
     if (transcript.length > 0) {
       onTranscriptReady(transcript)
     }
@@ -240,6 +245,15 @@ export function LiveRecorder({
           </div>
         )}
 
+        {missedCount > 0 && (
+          <div
+            className="flex items-center gap-1.5 rounded-full bg-amber-50 px-4 py-1.5 text-xs text-amber-700"
+            title="Chrome이 소리는 감지했지만 무슨 말인지 인식하지 못한 구간입니다."
+          >
+            ⚠️ 인식 실패 {missedCount}건
+          </div>
+        )}
+
         {isRecording && (
           <div className="flex items-center gap-2 rounded-full bg-neutral-100 px-4 py-1.5 text-xs text-neutral-600">
             <span className="text-sm">🎧</span>
@@ -337,7 +351,7 @@ export function LiveRecorder({
                   }`}
                 />
                 <h3 className="text-xs font-semibold text-neutral-600 uppercase tracking-wider">
-                  실시간 텍스트
+                  실시간 텍스트 <span className="normal-case font-normal text-neutral-400">(미리보기)</span>
                 </h3>
               </div>
               <span className="text-xs text-neutral-500">
