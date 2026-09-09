@@ -4,9 +4,12 @@ import {
   generateSimpleMinutes,
 } from '@/lib/minutes-generator'
 import { resolveProviderSettings } from '@/lib/api-keys'
+import {
+  MAX_TRANSCRIPT_CHARS,
+  SINGLE_PASS_CHAR_LIMIT,
+  condenseTranscript,
+} from '@/lib/long-transcript'
 import type { SummaryDepth, TemplateId } from '@/lib/templates'
-
-const MAX_TRANSCRIPT_CHARS = 100_000
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,6 +55,30 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // 한 번에 넣기엔 긴 회의는 구간별로 압축한 뒤 평소 경로로 회의록을 만든다.
+      // 예전에는 여기서 413으로 거부해, 3시간 회의가 마지막에 통째로 실패했다.
+      let condensedNotice: string | undefined
+
+      if (transcript.length > SINGLE_PASS_CHAR_LIMIT) {
+        const condensed = await condenseTranscript(transcript, {
+          provider: settings,
+        })
+
+        if (!condensed.success) {
+          const fallback = generateSimpleMinutes(input)
+          return Response.json({
+            markdown: fallback,
+            mode: 'simple',
+            warning: `긴 회의 정리에 실패하여 단순 변환으로 대체되었습니다: ${condensed.error}`,
+          })
+        }
+
+        input.transcript = condensed.text
+        condensedNotice =
+          `긴 회의(${transcript.length.toLocaleString()}자)라 ${condensed.windows}개 구간으로 ` +
+          '나눠 정리한 뒤 회의록을 작성했습니다.'
+      }
+
       const result = await generateAiMinutes(input, { provider: settings })
 
       if (!result.success) {
@@ -63,7 +90,11 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      return Response.json({ markdown: result.markdown, mode: 'gemini' })
+      return Response.json({
+        markdown: result.markdown,
+        mode: 'gemini',
+        ...(condensedNotice ? { warning: condensedNotice } : {}),
+      })
     }
 
     const markdown = generateSimpleMinutes(input)

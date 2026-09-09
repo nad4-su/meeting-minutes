@@ -31,7 +31,8 @@ export interface AudioRecorderHook {
   localBytes: number
   uploadedBytes: number
   recording: CompletedRecording | null
-  startRecording: () => Promise<void>
+  /** 캡처가 시작된 시각(epoch ms). 실패하면 null. */
+  startRecording: () => Promise<number | null>
   stopRecording: () => Promise<void>
   downloadRecording: (title: string) => void
   reset: () => void
@@ -164,8 +165,8 @@ export function useAudioRecorder(): AudioRecorderHook {
     })
   }, [])
 
-  const startRecording = useCallback(async () => {
-    if (recorderRef.current) return
+  const startRecording = useCallback(async (): Promise<number | null> => {
+    if (recorderRef.current) return null
 
     setError(null)
     setUploadWarning(null)
@@ -180,7 +181,7 @@ export function useAudioRecorder(): AudioRecorderHook {
 
     if (isSupported !== true) {
       setError('이 브라우저는 오디오 녹음을 지원하지 않습니다. Chrome을 사용해주세요.')
-      return
+      return null
     }
 
     const mimeType = pickRecorderMimeType((type) =>
@@ -188,7 +189,7 @@ export function useAudioRecorder(): AudioRecorderHook {
     )
     if (!mimeType) {
       setError('브라우저가 지원하는 녹음 형식을 찾지 못했습니다.')
-      return
+      return null
     }
 
     let stream: MediaStream
@@ -198,7 +199,7 @@ export function useAudioRecorder(): AudioRecorderHook {
       })
     } catch (err) {
       setError(describeCaptureError(err))
-      return
+      return null
     }
 
     // 서버 세션은 있으면 좋고 없어도 녹음은 간다. 여기서 포기하면
@@ -242,13 +243,16 @@ export function useAudioRecorder(): AudioRecorderHook {
       setError('녹음 중 오류가 발생했습니다. 지금까지의 오디오는 보존되어 있습니다.')
     }
 
+    const startedAt = new Date()
     streamRef.current = stream
     recorderRef.current = recorder
     mimeTypeRef.current = mimeType
-    startedAtRef.current = new Date()
+    startedAtRef.current = startedAt
 
     recorder.start(CHUNK_INTERVAL_MS)
     setIsRecording(true)
+
+    return startedAt.getTime()
   }, [isSupported, queueUpload])
 
   const stopRecording = useCallback(async () => {
