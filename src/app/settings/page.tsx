@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [model, setModel] = useState('')
+  const [sttModel, setSttModel] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [savedKey, setSavedKey] = useState<string | null>(null)
   const [envConfigured, setEnvConfigured] = useState<boolean | null>(null)
@@ -44,12 +45,15 @@ export default function SettingsPage() {
       setApiKey(stored.apiKey)
       setBaseUrl(stored.baseUrl)
       setModel(stored.model)
+      setSttModel(stored.sttModel ?? '')
       setSavedKey(stored.apiKey || null)
     } else {
       // 프로바이더 설정 이전에 저장해둔 Gemini 키를 그대로 이어받는다.
       const legacyKey = getStoredApiKey()
       setApiKey(legacyKey ?? '')
-      setModel(findPreset(DEFAULT_PRESET_ID).defaultModel)
+      const initial = findPreset(DEFAULT_PRESET_ID)
+      setModel(initial.defaultModel)
+      setSttModel(initial.defaultSttModel)
       setSavedKey(legacyKey)
     }
 
@@ -66,6 +70,7 @@ export default function SettingsPage() {
     setPresetId(next.id)
     setBaseUrl(next.baseUrl)
     setModel(next.defaultModel)
+    setSttModel(next.defaultSttModel)
     // 프로바이더가 바뀌면 이전 키는 무의미할 뿐 아니라, 그대로 두면
     // 다른 회사 엔드포인트로 전송될 수 있으므로 비운다.
     setApiKey('')
@@ -78,6 +83,7 @@ export default function SettingsPage() {
       apiKey: apiKey.trim(),
       baseUrl: baseUrl.trim(),
       model: model.trim(),
+      sttModel: sttModel.trim(),
     })
     setSavedKey(apiKey.trim() || null)
     setSavedToast(true)
@@ -99,6 +105,7 @@ export default function SettingsPage() {
     setApiKey('')
     setBaseUrl(fallback.baseUrl)
     setModel(fallback.defaultModel)
+    setSttModel(fallback.defaultSttModel)
     setSavedKey(null)
     setTestState({ status: 'idle' })
   }
@@ -283,6 +290,29 @@ export default function SettingsPage() {
             />
             {preset.modelHint && (
               <p className="mt-1 text-xs text-neutral-500">{preset.modelHint}</p>
+            )}
+          </div>
+
+          <div className="mt-5">
+            <label className="mb-2 block text-sm text-neutral-600">
+              음성 전사(STT) 모델
+            </label>
+            <input
+              type="text"
+              value={sttModel}
+              onChange={(e) => setSttModel(e.target.value)}
+              placeholder={preset.defaultSttModel || 'whisper-1'}
+              className="w-full rounded-xl border border-neutral-300 px-4 py-3 font-mono text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100 transition-all"
+            />
+            <p className="mt-1 text-xs text-neutral-500">
+              녹음 오디오를 텍스트로 옮길 때 쓰는 모델입니다. 요약 모델과 별개입니다.
+            </p>
+            {!preset.canTranscribeWebm && (
+              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                ⚠️ 이 프로바이더는 브라우저 녹음 형식(webm)을 받지 않습니다. 실시간
+                녹음을 전사하려면 OpenAI 호환 프로바이더(OrcaRouter · OpenAI ·
+                로컬 whisper)를 선택하세요. 업로드한 mp3·wav·flac 파일은 전사됩니다.
+              </p>
             )}
           </div>
 
